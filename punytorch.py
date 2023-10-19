@@ -26,34 +26,28 @@ class Tensor:
 
     def __pow__(self, other) -> "Tensor":
         return Tensor(self.data**other.data)
-    
-    def __ge__(self, other) -> 'Tensor':
+
+    def __ge__(self, other) -> "Tensor":
         return Tensor(self.data >= other.data)
 
-    def __eq__(self, other) -> 'Tensor':
+    def __eq__(self, other) -> "Tensor":
         return Tensor(self.data == other.data)
 
-    def __ne__(self, other) -> 'Tensor':
+    def __ne__(self, other) -> "Tensor":
         return Tensor(self.data != other.data)
-    
+
     """
     UNARY OPS
     """
-    
-    def __abs__(self) -> 'Tensor':
+
+    def __abs__(self) -> "Tensor":
         return Tensor(np.abs(self.data))
 
-    def __neg__(self) -> 'Tensor':
+    def __neg__(self) -> "Tensor":
         return Tensor(-self.data)
 
-    def __invert__(self) -> 'Tensor':
+    def __invert__(self) -> "Tensor":
         return Tensor(~self.data)
 
     def __repr__(self) -> str:
         return f"tensor({self.data})"
-
-
-if __name__ == "__main__":
-    x = Tensor([8])
-    y = Tensor([5])
-    z = x + y
