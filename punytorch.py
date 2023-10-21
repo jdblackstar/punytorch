@@ -10,7 +10,7 @@ class Tensor:
     """
     ML OPS
     """
-    def backward(self, grad=None):
+    def backward(self, grad=None) -> None:
         if self.context is None:
             if self.grad is None:
                 self.grad = grad
@@ -98,14 +98,14 @@ class Function:
 
 class Add:
     @staticmethod
-    def forward(x, y):
+    def forward(x, y) -> "Tensor":
         """
         z = x + y
         """
         return Tensor(x.data + y.data)
 
     @staticmethod
-    def backward(context, grad):
+    def backward(context, grad) -> "Tensor":
         """
         d(x + y)/dx = 1
         d(x + y)/dy = 1
@@ -117,14 +117,14 @@ class Add:
 
 class Sub:
     @staticmethod
-    def forward(x, y):
+    def forward(x, y) -> "Tensor":
         """
         z = x - y
         """
         return Tensor(x.data - y.data)
 
     @staticmethod
-    def backward(context, grad):
+    def backward(context, grad) -> "Tensor":
         """
         d(x - y)/dx = 1
         d(x - y)/dy = -
@@ -136,14 +136,14 @@ class Sub:
 
 class Mul:
     @staticmethod
-    def forward(x, y):
+    def forward(x, y) -> "Tensor":
         """
         z = x * y
         """
         return Tensor(x.data * y.data)
 
     @staticmethod
-    def backward(context, grad):
+    def backward(context, grad) -> "Tensor":
         """
         d(x * y)/dx = y
         d(x * y)/dy = x
@@ -155,14 +155,14 @@ class Mul:
 
 class TrueDiv:
     @staticmethod
-    def forward(x, y):
+    def forward(x, y) -> "Tensor":
         """
         z = x / y
         """
         return Tensor(x.data / y.data)
 
     @staticmethod
-    def backward(context, grad):
+    def backward(context, grad) -> "Tensor":
         """
         d(x / y)/dx = 1/y
         d(x / y)/dy = -x/y^2
@@ -182,14 +182,14 @@ class Mod:
     """
 
     @staticmethod
-    def forward(x, y):
+    def forward(x, y) -> "Tensor":
         """
         z = x % y
         """
         return Tensor(x.data % y.data)
 
     @staticmethod
-    def backward(context, grad):
+    def backward(context, grad) -> "Tensor":
         """
         d(x % y)/dx = 1
         d(x % y)/dy = 0
@@ -204,14 +204,14 @@ class Mod:
 
 class Pow:
     @staticmethod
-    def forward(x, y):
+    def forward(x, y) -> "Tensor":
         """
         z = x ^ y
         """
         return Tensor(x.data**y.data)
 
     @staticmethod
-    def backward(context, grad):
+    def backward(context, grad) -> "Tensor":
         """
         d(x ^ y)/dx = y * x^(y - 1)
         d(x ^ y)/dy = x^y * log(x)
