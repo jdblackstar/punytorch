@@ -5,7 +5,34 @@ class Tensor:
     def __init__(self, data) -> None:
         self.data = data if isinstance(data, np.ndarray) else np.array(data)
         self.context = None
+        self.grad = None
 
+    """
+    ML OPS
+    """
+    def backward(self, grad=None):
+        if self.context is None:
+            if self.grad is None:
+                self.grad = grad
+            else:
+                self.grad += grad
+            return
+
+        if grad is None:
+            grad = Tensor([1.])
+            self.grad = grad
+
+        op = self.context.op
+        child_nodes = self.context.args
+
+        grads = op.backward(self.context, grad)
+        
+        for tensor, grad in zip(child_nodes, grads):
+            if tensor.grad is None:
+                tensor.grad = Tensor(np.zeros_like(self.data))
+            tensor.grad += grad
+            tensor.backward(grad)
+    
     """
     BINARY OPS
     """
@@ -123,7 +150,7 @@ class Mul:
         so return Tensor(y.data) for x and Tensor(x.data) for y
         """
         x, y = context.args
-        return Tensor(y.data), Tensor(x.data)
+        return Tensor(y.data * grad.data), Tensor(x.data * grad.data)
 
 
 class TrueDiv:
@@ -193,3 +220,27 @@ class Pow:
         return Tensor(y.data * x.data ** (y.data - 1)), Tensor(
             x.data**y.data * np.log(x.data)
         )
+
+
+if __name__ == "__main__":
+    x = Tensor([8])
+    y = Tensor([5])    
+    z = x*y
+    y = Tensor([5])
+
+    print("Add")
+    z = x + y
+    print(z)
+    z.backward()
+    print(f"x: {x} , grad {x.grad}")
+    print(f"y: {y} , grad {y.grad}")
+    print("="*100)
+
+    print("Mul")
+    z = x * y
+    print(z)
+
+    z.backward()
+    print(f"x: {x} , grad {x.grad}")
+    print(f"y: {y} , grad {y.grad}")
+    print("="*100)
