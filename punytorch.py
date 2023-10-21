@@ -29,13 +29,22 @@ class Tensor:
         return result
 
     def __truediv__(self, other) -> "Tensor":
-        return Tensor(self.data / other.data)
+        fn = Function(TrueDiv, self, other)
+        result = TrueDiv.forward(self, other)
+        result.context = fn
+        return result
 
     def __mod__(self, other) -> "Tensor":
-        return Tensor(self.data % other.data)
+        fn = Function(Mod, self, other)
+        result = Mod.forward(self, other)
+        result.context = fn
+        return result
 
     def __pow__(self, other) -> "Tensor":
-        return Tensor(self.data**other.data)
+        fn = Function(Pow, self, other)
+        result = Pow.forward(self, other)
+        result.context = fn
+        return result
 
     """
     UNARY OPS
