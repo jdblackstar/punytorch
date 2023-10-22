@@ -143,3 +143,34 @@ class Pow:
         """
         x, y = context.args
         return (y.data * x.data ** (y.data - 1)), (x.data**y.data * np.log(x.data))
+
+class MatMul:
+    @staticmethod
+    def forward(x, y):
+        """
+        z = x @ y
+        """
+        return x @ y  # @ is the matrix multiplication operator in Python
+
+    @staticmethod
+    def backward(context, grad):
+        """
+        If Z = X @ Y, then
+        d(Z)/dX = grad @ Y.T
+        d(Z)/dY = X.T @ grad
+        """
+        x, y = context.args
+
+        # Shape Check
+        assert x.shape[1] == y.shape[0], "Incompatible shapes for matrix multiplication"
+        assert grad.shape[0] == x.shape[0], "Incompatible shapes for backward matrix multiplication"
+        assert grad.shape[1] == y.shape[1], "Incompatible shapes for backward matrix multiplication"
+
+        # Dimension Check
+        assert x.ndim >= 2 and y.ndim >= 2, "Both inputs to matmul should be at least 2-dimensional"
+        assert grad.ndim >= 2, "The gradient should be at least 2-dimensional"
+
+        # Non-emptiness Check
+        assert x.size > 0 and y.size > 0 and grad.size > 0, "Inputs to matmul should not be empty"
+
+        return grad @ y.T, x.T @ grad

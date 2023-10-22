@@ -1,6 +1,6 @@
 import numpy as np
 
-from ops import Add, Function, Mod, Mul, Pow, Sub, TrueDiv
+from ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, TrueDiv
 
 
 class Tensor:
@@ -31,27 +31,23 @@ class Tensor:
     """
 
     def __add__(self, other) -> "Tensor":
-        fn = Function(Add, self, other)
         result = Tensor(Add.forward(self.data, other.data))
-        result.context = fn
+        result.context = Function(Add, self, other)
         return result
 
     def __sub__(self, other) -> "Tensor":
-        fn = Function(Sub, self, other)
         result = Tensor(Sub.forward(self.data, other.data))
-        result.context = fn
+        result.context = Function(Sub, self, other)
         return result
 
     def __mul__(self, other) -> "Tensor":
-        fn = Function(Mul, self, other)
         result = Tensor(Mul.forward(self.data, other.data))
-        result.context = fn
+        result.context = Function(Mul, self, other)
         return result
 
     def __truediv__(self, other) -> "Tensor":
-        fn = Function(TrueDiv, self, other)
         result = Tensor(TrueDiv.forward(self.data, other.data))
-        result.context = fn
+        result.context = Function(TrueDiv, self, other)
         return result
 
     def __mod__(self, other) -> "Tensor":
@@ -61,9 +57,13 @@ class Tensor:
         return result
 
     def __pow__(self, other) -> "Tensor":
-        fn = Function(Pow, self, other)
         result = Tensor(Pow.forward(self.data, other.data))
-        result.context = fn
+        result.context = Function(Pow, self, other)
+        return result
+    
+    def __matmul__(self, other):
+        result = Tensor(MatMul.forward(self.data, other.data))
+        result.context = Function(MatMul, self, other)
         return result
 
     """
