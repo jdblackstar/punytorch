@@ -19,7 +19,9 @@ class Tensor:
 
         self.grad = grad
         if self.context is not None:
-            grads = self.context.op.backward(self.context, grad.data)  # pass Function object as context
+            grads = self.context.op.backward(
+                self.context, grad.data
+            )  # pass Function object as context
             for tensor, grad in zip(self.context.args, grads):
                 if tensor.grad is None:
                     tensor.grad = grad
@@ -60,7 +62,7 @@ class Tensor:
         result = Tensor(Pow.forward(self.data, other.data))
         result.context = Function(Pow, self, other)
         return result
-    
+
     def __matmul__(self, other):
         result = Tensor(MatMul.forward(self.data, other.data))
         result.context = Function(MatMul, self, other)

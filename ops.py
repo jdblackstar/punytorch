@@ -20,7 +20,7 @@ class Add:
         """
         d(x + y)/dx = 1
         d(x + y)/dy = 1
-        
+
         return [1] for both x and y
         """
         x, y = context.args
@@ -40,7 +40,7 @@ class Sub:
         """
         d(x - y)/dx = 1
         d(x - y)/dy = -1
-        
+
         return [1] for x
         return [-1] for y
         """
@@ -61,7 +61,7 @@ class Mul:
         """
         d(x * y)/dx = y
         d(x * y)/dy = x
-        
+
         return (y.data * grad.data) for x
         return (x.data * grad.data) for y
         """
@@ -87,7 +87,7 @@ class TrueDiv:
         return (-grad.data * x.data / (y.data ** 2)) for y
         """
         x, y = context.args
-        return (grad.data / y.data), (-grad.data * x.data / (y.data ** 2))
+        return (grad.data / y.data), (-grad.data * x.data / (y.data**2))
 
 
 class Mod:
@@ -130,7 +130,7 @@ class Pow:
         """
         z = x ^ y
         """
-        return x ** y
+        return x**y
 
     @staticmethod
     def backward(context, grad):
@@ -143,6 +143,7 @@ class Pow:
         """
         x, y = context.args
         return (y.data * x.data ** (y.data - 1)), (x.data**y.data * np.log(x.data))
+
 
 class MatMul:
     @staticmethod
@@ -162,15 +163,25 @@ class MatMul:
         x, y = context.args
 
         # Shape Check
-        assert x.data.shape[1] == y.data.shape[0], "Incompatible shapes for matrix multiplication"
-        assert grad.shape[0] == x.data.shape[0], "Incompatible shapes for backward matrix multiplication"
-        assert grad.shape[1] == y.data.shape[1], "Incompatible shapes for backward matrix multiplication"
+        assert (
+            x.data.shape[1] == y.data.shape[0]
+        ), "Incompatible shapes for matrix multiplication"
+        assert (
+            grad.shape[0] == x.data.shape[0]
+        ), "Incompatible shapes for backward matrix multiplication"
+        assert (
+            grad.shape[1] == y.data.shape[1]
+        ), "Incompatible shapes for backward matrix multiplication"
 
         # Dimension Check
-        assert x.data.ndim >= 2 and y.data.ndim >= 2, "Both inputs to matmul should be at least 2-dimensional"
+        assert (
+            x.data.ndim >= 2 and y.data.ndim >= 2
+        ), "Both inputs to matmul should be at least 2-dimensional"
         assert grad.ndim >= 2, "The gradient should be at least 2-dimensional"
 
         # Non-emptiness Check
-        assert x.data.size > 0 and y.data.size > 0 and grad.size > 0, "Inputs to matmul should not be empty"
+        assert (
+            x.data.size > 0 and y.data.size > 0 and grad.size > 0
+        ), "Inputs to matmul should not be empty"
 
         return grad @ y.data.T, x.data.T @ grad
