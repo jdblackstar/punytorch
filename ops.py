@@ -162,15 +162,15 @@ class MatMul:
         x, y = context.args
 
         # Shape Check
-        assert x.shape[1] == y.shape[0], "Incompatible shapes for matrix multiplication"
-        assert grad.shape[0] == x.shape[0], "Incompatible shapes for backward matrix multiplication"
-        assert grad.shape[1] == y.shape[1], "Incompatible shapes for backward matrix multiplication"
+        assert x.data.shape[1] == y.data.shape[0], "Incompatible shapes for matrix multiplication"
+        assert grad.shape[0] == x.data.shape[0], "Incompatible shapes for backward matrix multiplication"
+        assert grad.shape[1] == y.data.shape[1], "Incompatible shapes for backward matrix multiplication"
 
         # Dimension Check
-        assert x.ndim >= 2 and y.ndim >= 2, "Both inputs to matmul should be at least 2-dimensional"
+        assert x.data.ndim >= 2 and y.data.ndim >= 2, "Both inputs to matmul should be at least 2-dimensional"
         assert grad.ndim >= 2, "The gradient should be at least 2-dimensional"
 
         # Non-emptiness Check
-        assert x.size > 0 and y.size > 0 and grad.size > 0, "Inputs to matmul should not be empty"
+        assert x.data.size > 0 and y.data.size > 0 and grad.size > 0, "Inputs to matmul should not be empty"
 
-        return grad @ y.T, x.T @ grad
+        return grad @ y.data.T, x.data.T @ grad
