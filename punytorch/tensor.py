@@ -1,14 +1,14 @@
 import numpy as np
 
-from activations import ReLU, Sigmoid, Softmax
-from ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, TrueDiv
+from punytorch.activations import ReLU, Sigmoid, Softmax
+from punytorch.ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, TrueDiv
 
 
 class Tensor:
     def __init__(self, data) -> None:
         self.data = data if isinstance(data, np.ndarray) else np.array(data)
         self.context = None
-        self.grad = None
+        self.grad = np.zeros_like(self.data, dtype=float)
 
     """
     ML OPS
@@ -18,16 +18,13 @@ class Tensor:
         if grad is None:
             grad = Tensor(np.ones_like(self.data))
 
-        self.grad = grad
         if self.context is not None:
-            grads = self.context.op.backward(
-                self.context, grad.data
-            )  # pass Function object as context
-            for tensor, grad in zip(self.context.args, grads):
-                if tensor.grad is None:
-                    tensor.grad = grad
-                else:
-                    tensor.grad += grad
+            grads = self.context.op.backward(self.context, grad.data)
+            for arg, grad in zip(self.context.args, grads):
+                if isinstance(arg, Tensor):
+                    arg.grad += grad  # Update the grad attribute
+                    arg.backward(grad)  # Recursively propagate the gradient
+        else: self.grad = grad
 
     def relu(self):
         result = Tensor(ReLU.forward(self.data))
