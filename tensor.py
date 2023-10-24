@@ -1,5 +1,6 @@
 import numpy as np
 
+from activations import ReLU, Sigmoid, Softmax
 from ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, TrueDiv
 
 
@@ -27,6 +28,21 @@ class Tensor:
                     tensor.grad = grad
                 else:
                     tensor.grad += grad
+
+    def relu(self):
+        result = Tensor(ReLU.forward(self.data))
+        result.context = Function(ReLU, self)
+        return result
+
+    def sigmoid(self):
+        result = Tensor(Sigmoid.forward(self.data))
+        result.context = Function(Sigmoid, self)
+        return result
+
+    def softmax(self):
+        result = Tensor(Softmax.forward(self.data))
+        result.context = Function(Softmax, self)
+        return result
 
     """
     BINARY OPS
