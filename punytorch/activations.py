@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class ReLU:
     @staticmethod
     def forward(x):
@@ -8,13 +9,15 @@ class ReLU:
         """
         return np.maximum(0, x)
 
-    @staticmethod
     def backward(context, grad):
         """
         d(max(0, x))/dx = 1 if x > 0 else 0
         """
         x = context.args[0].data
+        # grad wasn't broadcasting to the same shape as x, so:
+        grad = np.ones_like(x) if np.isscalar(grad) else grad
         return (x > 0) * grad
+
 
 class Sigmoid:
     @staticmethod
@@ -32,6 +35,7 @@ class Sigmoid:
         x = context.args[0].data
         sigmoid_x = 1 / (1 + np.exp(-x))
         return sigmoid_x * (1 - sigmoid_x) * grad
+
 
 class Softmax:
     @staticmethod

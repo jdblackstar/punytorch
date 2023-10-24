@@ -24,7 +24,8 @@ class Tensor:
                 if isinstance(arg, Tensor):
                     arg.grad += grad  # Update the grad attribute
                     arg.backward(grad)  # Recursively propagate the gradient
-        else: self.grad = grad
+        else:
+            self.grad = grad
 
     def relu(self):
         result = Tensor(ReLU.forward(self.data))
