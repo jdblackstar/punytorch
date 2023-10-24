@@ -16,7 +16,7 @@ class ReLU:
         x = context.args[0].data
         # grad wasn't broadcasting to the same shape as x, so:
         grad = np.ones_like(x) if np.isscalar(grad) else grad
-        return (x > 0) * grad
+        return (x > 0) * grad, None
 
 
 class Sigmoid:
@@ -34,7 +34,7 @@ class Sigmoid:
         """
         x = context.args[0].data
         sigmoid_x = 1 / (1 + np.exp(-x))
-        return sigmoid_x * (1 - sigmoid_x) * grad
+        return sigmoid_x * (1 - sigmoid_x) * grad, None
 
 
 class Softmax:
