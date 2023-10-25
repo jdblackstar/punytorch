@@ -27,6 +27,9 @@ class Tensor:
         else:
             self.grad = grad
 
+    def zero_grad(self):
+        self.grad = np.zeros_like(self.data, dtype=float)
+
     def relu(self):
         result = Tensor(ReLU.forward(self.data))
         result.context = Function(ReLU, self)
