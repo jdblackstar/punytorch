@@ -50,8 +50,18 @@ class Softmax:
     def backward(context, grad):
         """
         The gradient of softmax is a bit complex to compute, it's not as straightforward as other functions.
+
+        we need to compute the jacobian matrix of the softmax function and then multiply with the gradient.
         """
         x = context.args[0].data
         softmax_x = np.exp(x - np.max(x))
         softmax_x /= np.sum(softmax_x, axis=0)
-        return softmax_x * (grad - np.sum(grad * softmax_x, axis=0))
+        grad = np.ones_like(x) if np.isscalar(grad) else grad
+        grad_input = np.zeros_like(x)
+        for i in range(len(x)):
+            for j in range(len(x)):
+                if i == j:
+                    grad_input[i] += grad[j] * softmax_x[i] * (1 - softmax_x[j])
+                else:
+                    grad_input[i] -= grad[j] * softmax_x[i] * softmax_x[j]
+        return grad_input
