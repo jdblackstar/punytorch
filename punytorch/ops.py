@@ -87,7 +87,9 @@ class TrueDiv:
         return (-grad.data * x.data / (y.data ** 2)) for y
         """
         x, y = context.args
-        return (np.array(grad.data) / y.data), (-np.array(grad.data) * x.data / (y.data**2))
+        return (np.array(grad.data) / y.data), (
+            -np.array(grad.data) * x.data / (y.data**2)
+        )
 
 
 class Mod:

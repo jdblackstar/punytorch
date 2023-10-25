@@ -1,5 +1,7 @@
-from punytorch.tensor import Tensor
 import numpy as np
+
+from punytorch.tensor import Tensor
+
 
 def test_Add():
     x = Tensor([8])
@@ -9,6 +11,7 @@ def test_Add():
     z.backward()
     assert np.all(x.grad == np.array([1]))
 
+
 def test_Sub():
     x = Tensor([8])
     y = Tensor([5])
@@ -16,6 +19,7 @@ def test_Sub():
     assert z.data == 3
     z.backward()
     assert np.all(x.grad == np.array([1]))
+
 
 def test_Mul():
     x = Tensor([8])
@@ -26,6 +30,7 @@ def test_Mul():
     assert x.grad == y.data
     assert y.grad == x.data
 
+
 def test_TrueDiv():
     x = Tensor([8])
     y = Tensor([2])
@@ -33,7 +38,8 @@ def test_TrueDiv():
     assert z.data == 4
     z.backward()
     assert x.grad == 1 / y.data
-    assert y.grad == -x.data / (y.data ** 2)
+    assert y.grad == -x.data / (y.data**2)
+
 
 def test_MatMul():
     x = Tensor(np.array([[1, 2, 3], [4, 5, 6]]))  # 2x3 matrix
