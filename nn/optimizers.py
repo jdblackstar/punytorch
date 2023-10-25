@@ -42,6 +42,7 @@ class Adam(Optimizer):
             v_hat = self.v[i] / (1 - self.betas[1] ** self.t)
             param.data -= self.lr * m_hat / (np.sqrt(v_hat) + self.eps)
 
+
 class RMSProp(Optimizer):
     def __init__(self, params, lr, alpha=0.99, eps=1e-8):
         super().__init__(params)
@@ -54,8 +55,9 @@ class RMSProp(Optimizer):
         for i, param in enumerate(self.params):
             if param.grad is None:
                 continue
-            self.v[i] = self.alpha * self.v[i] + (1 - self.alpha) * (param.grad ** 2)
+            self.v[i] = self.alpha * self.v[i] + (1 - self.alpha) * (param.grad**2)
             param.data -= self.lr * param.grad / (np.sqrt(self.v[i]) + self.eps)
+
 
 class Adagrad(Optimizer):
     def __init__(self, params, lr, eps=1e-8):
@@ -68,8 +70,9 @@ class Adagrad(Optimizer):
         for i, param in enumerate(self.params):
             if param.grad is None:
                 continue
-            self.G[i] += param.grad ** 2
+            self.G[i] += param.grad**2
             param.data -= self.lr / np.sqrt(self.G[i] + self.eps) * param.grad
+
 
 class Adadelta(Optimizer):
     def __init__(self, params, rho=0.9, eps=1e-6):
@@ -83,10 +86,14 @@ class Adadelta(Optimizer):
         for i, param in enumerate(self.params):
             if param.grad is None:
                 continue
-            self.Eg[i] = self.rho * self.Eg[i] + (1 - self.rho) * param.grad ** 2
-            delta = np.sqrt((self.Edelta[i] + self.eps) / (self.Eg[i] + self.eps)) * param.grad
-            self.Edelta[i] = self.rho * self.Edelta[i] + (1 - self.rho) * delta ** 2
+            self.Eg[i] = self.rho * self.Eg[i] + (1 - self.rho) * param.grad**2
+            delta = (
+                np.sqrt((self.Edelta[i] + self.eps) / (self.Eg[i] + self.eps))
+                * param.grad
+            )
+            self.Edelta[i] = self.rho * self.Edelta[i] + (1 - self.rho) * delta**2
             param.data -= delta
+
 
 class Adamax(Optimizer):
     def __init__(self, params, lr, betas=(0.9, 0.999), eps=1e-8):
@@ -105,4 +112,8 @@ class Adamax(Optimizer):
                 continue
             self.m[i] = self.betas[0] * self.m[i] + (1 - self.betas[0]) * param.grad
             self.u[i] = np.maximum(self.betas[1] * self.u[i], np.abs(param.grad))
-            param.data -= (self.lr / (1 - self.betas[0] ** self.t)) * self.m[i] / (self.u[i] + self.eps)
+            param.data -= (
+                (self.lr / (1 - self.betas[0] ** self.t))
+                * self.m[i]
+                / (self.u[i] + self.eps)
+            )
