@@ -187,3 +187,15 @@ class MatMul:
         ), "Inputs to matmul should not be empty"
 
         return grad @ y.data.T, x.data.T @ grad
+
+
+class Tanh:
+    @staticmethod
+    def forward(x):
+        return np.tanh(x.data)
+
+    @staticmethod
+    def backward(context, grad):
+        (x,) = context.args
+        grad_tanh = 1 - np.tanh(x.data) ** 2
+        return grad_tanh * grad

@@ -29,6 +29,10 @@ class Adam(Optimizer):
         self.v = [np.zeros_like(param.data) for param in self.params]
         self.t = 0
 
+    def zero_grad(self):
+        for param in self.params:
+            param.grad = np.zeros_like(param.grad)
+
     def step(self):
         self.t += 1
         for i, param in enumerate(self.params):

@@ -91,14 +91,15 @@ class Linear(Module):
         self.out_features = out_features
 
         self.weight = Parameter(
-            np.rand((out_features, in_features)) / np.sqrt(in_features + out_features)
+            np.random.rand(out_features, in_features)
+            / np.sqrt(in_features + out_features)
         )
         self.bias = Parameter(np.zeros(out_features)) if bias else None
 
     def forward(self, x):
-        x = x @ self.weight.t()
+        x = Tensor(x @ self.weight.t().data)
         if self.bias:
-            x = x + self.bias
+            x = Tensor(x.data + self.bias.data)
         return x
 
 
