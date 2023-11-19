@@ -1,5 +1,7 @@
 import numpy as np
 
+from punytorch.tensor import Tensor
+
 
 class MSELoss:
     @staticmethod
@@ -9,6 +11,25 @@ class MSELoss:
     @staticmethod
     def backward(y_pred, y_true):
         return 2 * (y_pred - y_true) / y_pred.size
+
+
+class CrossEntropyLoss:
+    @staticmethod
+    def forward(y_pred, y_true):
+        exps = np.exp(y_pred - np.max(y_pred, axis=1, keepdims=True))
+        probs = exps / np.sum(exps, axis=1, keepdims=True) + 1e-22
+        log_likelihood = -np.log(probs[np.arange(len(y_true)), y_true.astype(int)])
+        return Tensor(np.mean(log_likelihood))  # Wrap the result in a Tensor
+
+    @staticmethod
+    def backward(y_pred, y_true):
+        exps = np.exp(y_pred - np.max(y_pred, axis=1, keepdims=True)) + 1e-22
+        probs = exps / np.sum(exps, axis=1, keepdims=True)
+        d_loss = np.zeros_like(probs)
+        d_loss[np.arange(len(y_true)), y_true.astype(int)] -= 1
+        d_loss += probs
+        d_loss /= len(y_true)
+        return d_loss
 
 
 class BinaryCrossEntropyLoss:
