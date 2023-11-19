@@ -1,14 +1,39 @@
 import numpy as np
 
 from punytorch.activations import ReLU, Sigmoid, Softmax
-from punytorch.ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, TrueDiv
+from punytorch.ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, Tanh, TrueDiv
 
 
 class Tensor:
-    def __init__(self, data) -> None:
+    def __init__(self, data, requires_grad=False) -> None:
         self.data = data if isinstance(data, np.ndarray) else np.array(data)
         self.context = None
         self.grad = np.zeros_like(self.data, dtype=float)
+        self.requires_grad = requires_grad
+
+    def __len__(self):
+        return self.data.shape[0]
+
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def t(self):
+        return Tensor(np.transpose(self.data))
+
+    def item(self):
+        assert (
+            np.prod(self.data.shape) == 1
+        ), "Only one element tensors can be converted to Python scalars"
+        return self.data.item()
+
+    def to_numpy(self):
+        if isinstance(self.data, (int, float)):
+            return np.array([self.data])
+        if isinstance(self.data, (list, tuple)):
+            return np.array(self.data)
+        if isinstance(self.data, np.ndarray):
+            return self.data.copy()
+        raise ValueError(f"Invalid value passed to tensor. Type: {type(self.data)}")
 
     def backward(self, grad=None):
         if grad is None:
@@ -104,6 +129,13 @@ class Tensor:
     def __repr__(self) -> str:
         return f"tensor({self.data})"
 
+    def tanh(self):
+        result = Tensor(Tanh.forward(self.data))
+        result.context = Function(Tanh, self)
+        return result
+
+    # TODO: implement new argmax function
+
     """
     ACTIVATIONS
     """
@@ -125,3 +157,11 @@ class Tensor:
         result = Tensor(Softmax.forward(self.data))
         result.context = Function(Softmax, self)
         return result
+
+    """
+    TYPING STUFF
+    """
+
+    def float(self):
+        self.data = self.data.astype(np.float32)
+        return self
