@@ -23,27 +23,30 @@ class Tensor:
         else:
             self.grad = grad
 
-
     """
     ML OPS
     """
+
     def no_grad():
         """
         Context manager to temporarily disable gradient computation.
         """
+
         class NoGradContext:
-            def __call__(self,func):
-                def wrapper(*args,**kwargs):
+            def __call__(self, func):
+                def wrapper(*args, **kwargs):
                     with NoGradContext():
-                        return func(*args,**kwargs)
+                        return func(*args, **kwargs)
+
                 return wrapper
+
             def __enter__(self):
                 Tensor._compute_grad = False
+
             def __exit__(self, exc_type, exc_value, traceback):
                 Tensor._compute_grad = True
+
         return NoGradContext()
-
-
 
     """
     BINARY OPS
@@ -101,10 +104,10 @@ class Tensor:
     def __repr__(self) -> str:
         return f"tensor({self.data})"
 
-
     """
     ACTIVATIONS
     """
+
     def zero_grad(self):
         self.grad = np.zeros_like(self.data, dtype=float)
 

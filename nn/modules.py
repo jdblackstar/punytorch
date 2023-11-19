@@ -1,9 +1,12 @@
 import numpy as np
+
 from punytorch.tensor import Tensor
+
 
 class Parameter(Tensor):
     def __init__(self, tensor):
         super().__init__(tensor, requires_grad=True)
+
 
 class Module:
     def __call__(self, *args, **kwargs) -> Tensor:
@@ -69,11 +72,11 @@ class Module:
 
     def to(self, device):
         return self  # add gpu backend maybe
-    
+
     def eval(self):
         for p in self.parameters():
             p.requires_grad = False
-        
+
     def train(self):
         for p in self.parameters():
             p.requires_grad = True
@@ -88,7 +91,7 @@ class Linear(Module):
         self.out_features = out_features
 
         self.weight = Parameter(
-            np.rand((out_features, in_features))  / np.sqrt(in_features+out_features)
+            np.rand((out_features, in_features)) / np.sqrt(in_features + out_features)
         )
         self.bias = Parameter(np.zeros(out_features)) if bias else None
 
@@ -97,7 +100,8 @@ class Linear(Module):
         if self.bias:
             x = x + self.bias
         return x
-    
+
+
 class ModuleList(Module, list):
     def __init__(self, modules=None):
         super().__init__()

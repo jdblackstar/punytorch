@@ -79,6 +79,7 @@ def get_batch(images: puny.Tensor, labels: puny.Tensor):
     for i in indices:
         yield images[i : i + BATCH_SIZE], labels[i : i + BATCH_SIZE]
 
+
 class Network(puny.Module):
     def __init__(self) -> None:
         super().__init__()
@@ -88,22 +89,27 @@ class Network(puny.Module):
     def forward(self, x: puny.Tensor) -> puny.Tensor:
         x = puny.tanh(self.l1(x))
         return self.l2(x)
-    
+
+
 @puny.no_grad()
 def test(model: Network, test_images: puny.Tensor, test_labels: puny.Tensor):
     preds = model.forward(test_images)
     pred_indices = puny.argmax(preds, axis=-1).numpy()
     test_labels = test_labels.numpy()
-    
-    correct = 0    
-    for p,t in zip(pred_indices.reshape(-1),test_labels.reshape(-1)):
-        if p==t:
-            correct+=1
-    accuracy= correct/ len(test_labels)
+
+    correct = 0
+    for p, t in zip(pred_indices.reshape(-1), test_labels.reshape(-1)):
+        if p == t:
+            correct += 1
+    accuracy = correct / len(test_labels)
     print(f"Test accuracy: {accuracy:.2%}")
 
+
 def train(
-    model: Network, optimizer: Adam, train_images: puny.Tensor, train_labels: puny.Tensor
+    model: Network,
+    optimizer: Adam,
+    train_images: puny.Tensor,
+    train_labels: puny.Tensor,
 ):
     model.train()
     for epoch in range(EPOCHS):
@@ -130,9 +136,7 @@ if __name__ == "__main__":
     download_mnist()
     (train_images, train_labels), (test_images, test_labels) = load_mnist()
 
-    train_labels, test_labels = map(
-        puny.tensor,  [train_labels, test_labels]
-    )
+    train_labels, test_labels = map(puny.tensor, [train_labels, test_labels])
 
     train_images = puny.tensor(train_images.reshape(-1, 28 * 28) / 255).float()
     test_images = puny.tensor(test_images.reshape(-1, 28 * 28) / 255).float()
