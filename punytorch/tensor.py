@@ -10,10 +10,6 @@ class Tensor:
         self.context = None
         self.grad = np.zeros_like(self.data, dtype=float)
 
-    """
-    ML OPS
-    """
-
     def backward(self, grad=None):
         if grad is None:
             grad = Tensor(np.ones_like(self.data))
@@ -27,23 +23,27 @@ class Tensor:
         else:
             self.grad = grad
 
-    def zero_grad(self):
-        self.grad = np.zeros_like(self.data, dtype=float)
 
-    def relu(self):
-        result = Tensor(ReLU.forward(self.data))
-        result.context = Function(ReLU, self)
-        return result
+    """
+    ML OPS
+    """
+    def no_grad():
+        """
+        Context manager to temporarily disable gradient computation.
+        """
+        class NoGradContext:
+            def __call__(self,func):
+                def wrapper(*args,**kwargs):
+                    with NoGradContext():
+                        return func(*args,**kwargs)
+                return wrapper
+            def __enter__(self):
+                Tensor._compute_grad = False
+            def __exit__(self, exc_type, exc_value, traceback):
+                Tensor._compute_grad = True
+        return NoGradContext()
 
-    def sigmoid(self):
-        result = Tensor(Sigmoid.forward(self.data))
-        result.context = Function(Sigmoid, self)
-        return result
 
-    def softmax(self):
-        result = Tensor(Softmax.forward(self.data))
-        result.context = Function(Softmax, self)
-        return result
 
     """
     BINARY OPS
@@ -100,3 +100,25 @@ class Tensor:
 
     def __repr__(self) -> str:
         return f"tensor({self.data})"
+
+
+    """
+    ACTIVATIONS
+    """
+    def zero_grad(self):
+        self.grad = np.zeros_like(self.data, dtype=float)
+
+    def relu(self):
+        result = Tensor(ReLU.forward(self.data))
+        result.context = Function(ReLU, self)
+        return result
+
+    def sigmoid(self):
+        result = Tensor(Sigmoid.forward(self.data))
+        result.context = Function(Sigmoid, self)
+        return result
+
+    def softmax(self):
+        result = Tensor(Softmax.forward(self.data))
+        result.context = Function(Softmax, self)
+        return result
