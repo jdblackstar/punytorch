@@ -1,7 +1,10 @@
 import numpy as np
 
-from punytorch.losses import (BinaryCrossEntropyLoss,
-                              CategoricalCrossEntropyLoss, MSELoss)
+from punytorch.losses import (
+    BinaryCrossEntropyLoss,
+    CategoricalCrossEntropyLoss,
+    MSELoss,
+)
 from punytorch.tensor import Tensor
 
 
