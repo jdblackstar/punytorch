@@ -31,7 +31,8 @@ class Adam(Optimizer):
 
     def zero_grad(self):
         for param in self.params:
-            param.grad = np.zeros_like(param.grad)
+            if param.grad is not None:
+                param.grad = np.zeros_like(param.grad)
 
     def step(self):
         self.t += 1
