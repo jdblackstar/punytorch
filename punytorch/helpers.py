@@ -1,3 +1,6 @@
+import numpy as np
+
+
 def maximum(x, y):
     assert len(x) == len(y), "Input lists must have the same length"
     return [max(a, b) for a, b in zip(x, y)]
@@ -22,3 +25,16 @@ def exp(x, n=10):
         factorial *= i
         result += power / factorial
     return result
+
+
+def is_one_hot(labels):
+    # Check if the labels are 2D.
+    if len(labels.shape) != 2:
+        return False
+
+    # Check if the labels are binary vectors with a single 1.
+    for label in labels:
+        if np.sum(label) != 1 or np.max(label) != 1 or np.min(label) != 0:
+            return False
+
+    return True

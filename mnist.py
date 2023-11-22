@@ -13,13 +13,14 @@ from tqdm import tqdm
 from nn.models import MLP
 from nn.modules import Linear, Module
 from nn.optimizers import Adam
+from punytorch.helpers import is_one_hot
 from punytorch.losses import CrossEntropyLoss
 from punytorch.tensor import Tensor
 
 # Constants
-EPOCHS = 1
+EPOCHS = 10
 BATCH_SIZE = 32
-LR = 4e-3
+LR = 0.25
 MNIST_DIR = "mnist"
 
 
@@ -85,20 +86,22 @@ class Network(Module):
     def __init__(self) -> None:
         super().__init__()
         self.l1 = Linear(28 * 28, 128)
-        self.l2 = Linear(128, 10)
+        self.l2 = Linear(128, 64)
+        self.l3 = Linear(64, 10)
 
     def forward(self, x: Tensor) -> Tensor:
-        x = Tensor.tanh(self.l1(x))
-        return self.l2(x)
+        x = Tensor.relu(self.l1(x))
+        x = Tensor.relu(self.l2(x))
+        return Tensor.softmax(self.l3(x))
 
 
 @Tensor.no_grad()
 def test(model: Network, test_images: Tensor, test_labels: Tensor):
     preds = model.forward(test_images)
-    pred_indices = np.argmax(
-        preds, axis=-1
-    )  # using numpy's argmax for now, will fix this later on
-    test_labels = test_labels.to_numpy()
+    pred_indices = np.argmax(preds, axis=-1)
+
+    # Convert one-hot encoded labels to class indices
+    test_labels = np.argmax(test_labels.to_numpy(), axis=-1)
 
     correct = 0
     for p, t in zip(pred_indices.reshape(-1), test_labels.reshape(-1)):
@@ -124,9 +127,8 @@ def train(
         num_batches = len(train_images) // BATCH_SIZE
         with tqdm(total=num_batches) as pbar:
             for batch_images, batch_labels in batch_generator:
-                # Add this check and conversion
-                if isinstance(batch_images, memoryview):
-                    batch_images = np.array(batch_images)
+                # Convert one-hot encoded labels to class indices
+                batch_labels = np.argmax(batch_labels, axis=-1)
 
                 optimizer.zero_grad()
                 pred = model.forward(batch_images)
@@ -144,6 +146,15 @@ def train(
 if __name__ == "__main__":
     download_mnist()
     (train_images, train_labels), (test_images, test_labels) = load_mnist()
+
+    # using numpy for now, but we'll work on a custom implentation later maybe
+    num_classes = 10
+    train_labels = np.eye(num_classes)[train_labels]
+    test_labels = np.eye(num_classes)[test_labels]
+
+    # Check if the labels are one-hot encoded
+    print(f"Train labels one-hot encoded: {is_one_hot(train_labels)}")
+    print(f"Test labels one-hot encoded: {is_one_hot(test_labels)}")
 
     train_labels, test_labels = map(Tensor, [train_labels, test_labels])
 
