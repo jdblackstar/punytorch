@@ -1,7 +1,8 @@
 import numpy as np
 
 from punytorch.activations import ReLU, Sigmoid, Softmax
-from punytorch.ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, Tanh, TrueDiv
+from punytorch.ops import (Add, Function, MatMul, Mod, Mul, Pow, Sub, Tanh,
+                           TrueDiv)
 
 
 class Tensor:
