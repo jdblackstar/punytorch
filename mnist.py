@@ -18,9 +18,9 @@ from punytorch.losses import CrossEntropyLoss
 from punytorch.tensor import Tensor
 
 # Constants
-EPOCHS = 10
+EPOCHS = 1
 BATCH_SIZE = 32
-LR = 0.25
+LR = 4e-3
 MNIST_DIR = "mnist"
 
 
@@ -134,6 +134,8 @@ def train(
                 pred = model.forward(batch_images)
                 loss = cross_entropy(pred, batch_labels)
                 loss.backward()
+                for param in model.parameters():
+                    print(param.grad)
                 optimizer.step()
 
                 pbar.update(1)
