@@ -28,14 +28,17 @@ class Tensor:
         ), "Only one element tensors can be converted to Python scalars"
         return self.data.item()
 
-    def to_numpy(self):
-        if isinstance(self.data, (int, float)):
-            return np.array([self.data])
-        if isinstance(self.data, (list, tuple)):
-            return np.array(self.data)
-        if isinstance(self.data, np.ndarray):
-            return self.data.copy()
-        raise ValueError(f"Invalid value passed to tensor. Type: {type(self.data)}")
+    @staticmethod
+    def data_to_numpy(data):
+        if isinstance(data, (int, float)):
+            return np.arary([data])
+        if isinstance(data, (list, tuple)):
+            return np.array(data)
+        if isinstance(data, np.ndarray):
+            return data
+        if isinstance(data, Tensor):
+            return data.data.copy()
+        raise ValueError(f"Invalid value passed to tensor. Type: {type(data)}")
 
     def backward(self, grad=None):
         if grad is None:
