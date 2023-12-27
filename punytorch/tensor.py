@@ -3,8 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from punytorch.activations import ReLU, Sigmoid, Softmax
-from punytorch.ops import (Add, Function, MatMul, Mod, Mul, Pow, Sub, Tanh,
-                           TrueDiv)
+from punytorch.ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, Tanh, TrueDiv
 
 
 class Tensor:
@@ -82,38 +81,51 @@ class Tensor:
 
     def __add__(self, other) -> "Tensor":
         result = Tensor(Add.forward(self.data, other.data))
-        result.context = Function(Add, self, other)
+        if self.requires_grad or other.requires_grad:
+            result.context = Function(Add, self, other)
+            result.requires_grad = True
         return result
 
     def __sub__(self, other) -> "Tensor":
         result = Tensor(Sub.forward(self.data, other.data))
-        result.context = Function(Sub, self, other)
+        if self.requires_grad or other.requires_grad:
+            result.context = Function(Sub, self, other)
+            result.requires_grad = True
         return result
 
     def __mul__(self, other) -> "Tensor":
         result = Tensor(Mul.forward(self.data, other.data))
-        result.context = Function(Mul, self, other)
+        if self.requires_grad or other.requires_grad:
+            result.context = Function(Mul, self, other)
+            result.requires_grad = True
         return result
 
     def __truediv__(self, other) -> "Tensor":
         result = Tensor(TrueDiv.forward(self.data, other.data))
-        result.context = Function(TrueDiv, self, other)
+        if self.requires_grad or other.requires_grad:
+            result.context = Function(TrueDiv, self, other)
+            result.requires_grad = True
         return result
 
     def __mod__(self, other) -> "Tensor":
-        fn = Function(Mod, self, other)
         result = Tensor(Mod.forward(self.data, other.data))
-        result.context = fn
+        if self.requires_grad or other.requires_grad:
+            result.context = Function(Mod, self, other)
+            result.requires_grad = True
         return result
 
     def __pow__(self, other) -> "Tensor":
         result = Tensor(Pow.forward(self.data, other.data))
-        result.context = Function(Pow, self, other)
+        if self.requires_grad or other.requires_grad:
+            result.context = Function(Pow, self, other)
+            result.requires_grad = True
         return result
 
     def __matmul__(self, other):
         result = Tensor(MatMul.forward(self.data, other.data))
-        result.context = Function(MatMul, self, other)
+        if self.requires_grad or other.requires_grad:
+            result.context = Function(MatMul, self, other)
+            result.requires_grad = True
         return result
 
     """
