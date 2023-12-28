@@ -49,6 +49,7 @@ class Tensor:
             grads = self.context.op.backward(self.context, grad.data)
             for arg, grad in zip(self.context.args, grads):
                 if isinstance(arg, Tensor):
+                    grad = Tensor.ensure_tensor(grad)
                     arg.grad += grad
                     arg.backward(grad)
         else:
