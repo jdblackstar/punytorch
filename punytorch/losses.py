@@ -29,7 +29,7 @@ class CrossEntropyLoss:
         d_loss[np.arange(len(y_true)), y_true.astype(int)] -= 1
         d_loss += probs
         d_loss /= len(y_true)
-        return d_loss
+        return Tensor(d_loss)  # Wrap the result in a Tensor
 
 
 class BinaryCrossEntropyLoss:
