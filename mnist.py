@@ -101,7 +101,7 @@ def test(model: Network, test_images: Tensor, test_labels: Tensor):
     pred_indices = np.argmax(preds, axis=-1)
 
     # Convert one-hot encoded labels to class indices
-    test_labels = np.argmax(test_labels.to_numpy(), axis=-1)
+    test_labels = np.argmax(Tensor.data_to_numpy(test_labels.data), axis=-1)
 
     correct = 0
     for p, t in zip(pred_indices.reshape(-1), test_labels.reshape(-1)):

@@ -4,6 +4,7 @@ import numpy as np
 
 from punytorch.activations import ReLU, Sigmoid, Softmax
 from punytorch.ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, Tanh, TrueDiv
+from punytorch.mlops import Reshape
 
 
 class Tensor:
@@ -48,10 +49,16 @@ class Tensor:
             grads = self.context.op.backward(self.context, grad.data)
             for arg, grad in zip(self.context.args, grads):
                 if isinstance(arg, Tensor):
-                    arg.grad += grad  # Update the grad attribute
-                    arg.backward(grad)  # Recursively propagate the gradient
+                    arg.grad += grad
+                    arg.backward(grad)
         else:
             self.grad = grad
+
+    @staticmethod
+    def ensure_tensor(data):
+        if isinstance(data, Tensor):
+            return data
+        return Tensor(data)
 
     """
     ML OPS
@@ -67,7 +74,6 @@ class Tensor:
                 def wrapper(*args, **kwargs):
                     with NoGradContext():
                         return func(*args, **kwargs)
-
                 return wrapper
 
             def __enter__(self):
@@ -75,14 +81,28 @@ class Tensor:
 
             def __exit__(self, exc_type, exc_value, traceback):
                 Tensor._compute_grad = True
-
         return NoGradContext()
+    
+    def prod(self, iterable):
+        result = 1
+        for x in iterable:
+            result *= x
+        return result
+    
+    def reshape(self, *shape) -> Tensor:
+        if isinstance(shape[0], tuple):
+            shape = shape[0]
+        curr = self.prod(self.shape)
+        target = self.prod((s for s in shape if s != -1))
+        shape = tuple(curr // target if s == -1 else s for s in shape)
+        return Reshape.apply(self, shape)
 
     """
     BINARY OPS
     """
 
     def __add__(self, other) -> "Tensor":
+        other = Tensor.ensure_tensor(other)
         result = Tensor(Add.forward(self.data, other.data))
         if self.requires_grad or other.requires_grad:
             result.context = Function(Add, self, other)
@@ -90,6 +110,7 @@ class Tensor:
         return result
 
     def __sub__(self, other) -> "Tensor":
+        other = Tensor.ensure_tensor(other)
         result = Tensor(Sub.forward(self.data, other.data))
         if self.requires_grad or other.requires_grad:
             result.context = Function(Sub, self, other)
@@ -97,6 +118,7 @@ class Tensor:
         return result
 
     def __mul__(self, other) -> "Tensor":
+        other = Tensor.ensure_tensor(other)
         result = Tensor(Mul.forward(self.data, other.data))
         if self.requires_grad or other.requires_grad:
             result.context = Function(Mul, self, other)
@@ -104,6 +126,7 @@ class Tensor:
         return result
 
     def __truediv__(self, other) -> "Tensor":
+        other = Tensor.ensure_tensor(other)
         result = Tensor(TrueDiv.forward(self.data, other.data))
         if self.requires_grad or other.requires_grad:
             result.context = Function(TrueDiv, self, other)
@@ -111,6 +134,7 @@ class Tensor:
         return result
 
     def __mod__(self, other) -> "Tensor":
+        other = Tensor.ensure_tensor(other)
         result = Tensor(Mod.forward(self.data, other.data))
         if self.requires_grad or other.requires_grad:
             result.context = Function(Mod, self, other)
@@ -118,6 +142,7 @@ class Tensor:
         return result
 
     def __pow__(self, other) -> "Tensor":
+        other = Tensor.ensure_tensor(other)
         result = Tensor(Pow.forward(self.data, other.data))
         if self.requires_grad or other.requires_grad:
             result.context = Function(Pow, self, other)
@@ -125,6 +150,7 @@ class Tensor:
         return result
 
     def __matmul__(self, other):
+        other = Tensor.ensure_tensor(other)
         result = Tensor(MatMul.forward(self.data, other.data))
         if self.requires_grad or other.requires_grad:
             result.context = Function(MatMul, self, other)
