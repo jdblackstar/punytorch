@@ -92,7 +92,7 @@ class Network(Module):
     def forward(self, x: Tensor) -> Tensor:
         x = Tensor.relu(self.l1(x))
         x = Tensor.relu(self.l2(x))
-        return Tensor.softmax(self.l3(x))
+        return self.l3(x)
 
 
 @Tensor.no_grad()
