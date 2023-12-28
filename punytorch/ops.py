@@ -21,10 +21,9 @@ class Add:
         d(x + y)/dx = 1
         d(x + y)/dy = 1
 
-        return [1] for both x and y
+        return grad for both x and y
         """
-        x, y = context.args
-        return [1], [1]
+        return np.array([grad]), np.array([grad])
 
 
 class Sub:
@@ -153,7 +152,7 @@ class MatMul:
         """
         z = x @ y
         """
-        return x @ y  # @ is the matrix multiplication operator in Python
+        return x @ y
 
     @staticmethod
     def backward(context, grad):
@@ -163,31 +162,7 @@ class MatMul:
         d(Z)/dY = X.T @ grad
         """
         x, y = context.args
-
-        # Shape Check
-        assert (
-            x.data.shape[1] == y.data.shape[0]
-        ), "Incompatible shapes for matrix multiplication"
-        assert (
-            grad.shape[0] == x.data.shape[0]
-        ), "Incompatible shapes for backward matrix multiplication"
-        assert (
-            grad.shape[1] == y.data.shape[1]
-        ), "Incompatible shapes for backward matrix multiplication"
-
-        # Dimension Check
-        assert (
-            x.data.ndim >= 2 and y.data.ndim >= 2
-        ), "Both inputs to matmul should be at least 2-dimensional"
-        assert grad.ndim >= 2, "The gradient should be at least 2-dimensional"
-
-        # Non-emptiness Check
-        assert (
-            x.data.size > 0 and y.data.size > 0 and grad.size > 0
-        ), "Inputs to matmul should not be empty"
-
-        return grad @ y.data.T, x.data.T @ grad
-
+        return np.array([y.data * grad]), np.array([x.data * grad])
 
 class Tanh:
     @staticmethod
