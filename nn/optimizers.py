@@ -39,7 +39,9 @@ class Adam(Optimizer):
         for i, param in enumerate(self.params):
             if param.grad is None:
                 continue
-            grad_data = np.array(param.grad.data)  # Convert the memoryview to a numpy array
+            grad_data = np.array(
+                param.grad.data
+            )  # Convert the memoryview to a numpy array
             self.m[i] = self.betas[0] * self.m[i] + (1 - self.betas[0]) * grad_data
             self.v[i] = self.betas[1] * self.v[i] + (1 - self.betas[1]) * (
                 grad_data**2

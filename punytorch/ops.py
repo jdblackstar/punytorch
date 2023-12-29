@@ -164,6 +164,7 @@ class MatMul:
         x, y = context.args
         return np.array([y.data * grad]), np.array([x.data * grad])
 
+
 class Tanh:
     @staticmethod
     def forward(x):

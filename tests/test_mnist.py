@@ -1,5 +1,6 @@
 from mnist import load_mnist
 
+
 def test_mnist():
     (train_images, train_labels), (test_images, test_labels) = load_mnist()
 

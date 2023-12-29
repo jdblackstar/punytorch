@@ -1,5 +1,6 @@
 from punytorch.ops import Function
 
+
 class Reshape(Function):
     @staticmethod
     def forward(x, shape):
