@@ -22,6 +22,9 @@ class Tensor:
 
     def t(self):
         return Tensor(np.transpose(self.data))
+    
+    def tolist(self):
+        return self.data.tolist()
 
     def item(self):
         assert (
@@ -45,15 +48,16 @@ class Tensor:
         if grad is None:
             grad = Tensor(np.ones_like(self.data))
 
-        if self.context is not None:
-            grads = self.context.op.backward(self.context, grad.data)
-            for arg, grad in zip(self.context.args, grads):
-                if isinstance(arg, Tensor):
-                    grad = Tensor.ensure_tensor(grad)
-                    arg.grad += grad
-                    arg.backward(grad)
-        else:
-            self.grad = grad
+        stack = [(self, grad)]
+        while stack:
+            tensor, grad = stack.pop()
+            if tensor.context is not None:
+                grads = tensor.context.op.backward(tensor.context, grad.data)
+                for arg, grad_arg in zip(tensor.context.args, grads):
+                    if isinstance(arg, Tensor):
+                        grad_arg = Tensor.ensure_tensor(grad_arg)
+                        arg.grad += grad_arg
+                        stack.append((arg, grad_arg))
 
     @staticmethod
     def ensure_tensor(data):
