@@ -58,12 +58,16 @@ def download_mnist():
 def load_mnist() -> tuple:
     def read_labels(filename: str) -> np.array:
         with gzip.open(filename, "rb") as f:
-            magic, num = struct.unpack(">II", f.read(8))
+            magic = struct.unpack(">I", f.read(4))
+            if magic != 2049:
+                raise ValueError("Invalid magic number, aborting read of labels.")
             return np.frombuffer(f.read(), dtype=np.uint8)
 
     def read_images(filename: str) -> np.array:
         with gzip.open(filename, "rb") as f:
             magic, num, rows, cols = struct.unpack(">IIII", f.read(16))
+            if magic != 2051:
+                raise ValueError("Invalid magic number, aborting read of images.")
             images = np.frombuffer(f.read(), dtype=np.uint8)
             return images.reshape(num, rows, cols, 1)
 
