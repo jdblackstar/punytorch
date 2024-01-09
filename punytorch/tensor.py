@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 
 from punytorch.activations import ReLU, Sigmoid, Softmax
-from punytorch.ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, Tanh, TrueDiv
 from punytorch.mlops import Reshape
+from punytorch.ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, Tanh, TrueDiv
 
 
 class Tensor:
@@ -22,7 +22,7 @@ class Tensor:
 
     def t(self):
         return Tensor(np.transpose(self.data))
-    
+
     def tolist(self):
         return self.data.tolist()
 
@@ -56,7 +56,7 @@ class Tensor:
                 for arg, grad_arg in zip(tensor.context.args, grads):
                     if isinstance(arg, Tensor):
                         grad_arg = Tensor.ensure_tensor(grad_arg)
-                        arg.grad += grad_arg
+                        arg.grad = arg.grad + grad_arg.data
                         stack.append((arg, grad_arg))
 
     @staticmethod
@@ -71,7 +71,7 @@ class Tensor:
 
     def no_grad():
         """
-        Context manager to temporarily disable gradient computation.
+        This context manager can temporarily disable gradient computation.
         """
 
         class NoGradContext:
@@ -79,6 +79,7 @@ class Tensor:
                 def wrapper(*args, **kwargs):
                     with NoGradContext():
                         return func(*args, **kwargs)
+
                 return wrapper
 
             def __enter__(self):
@@ -86,21 +87,22 @@ class Tensor:
 
             def __exit__(self, exc_type, exc_value, traceback):
                 Tensor._compute_grad = True
+
         return NoGradContext()
-    
+
     def prod(self, iterable):
         result = 1
         for x in iterable:
             result *= x
         return result
-    
-    def reshape(self, *shape) -> Tensor:
+
+    def reshape(self, *shape):
         if isinstance(shape[0], tuple):
             shape = shape[0]
         curr = self.prod(self.shape)
         target = self.prod((s for s in shape if s != -1))
         shape = tuple(curr // target if s == -1 else s for s in shape)
-        return Reshape.apply(self, shape)
+        return Reshape.apply(self, shape).data
 
     """
     BINARY OPS
