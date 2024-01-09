@@ -14,6 +14,10 @@ class Tensor:
         self.grad = np.zeros_like(self.data, dtype=float)
         self.requires_grad = requires_grad
 
+    @property
+    def shape(self):
+        return self.data.shape
+
     def __len__(self):
         return self.data.shape[0]
 
