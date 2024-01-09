@@ -59,15 +59,16 @@ def load_mnist() -> tuple:
     def read_labels(filename: str) -> np.array:
         with gzip.open(filename, "rb") as f:
             magic = struct.unpack(">I", f.read(4))
-            if magic != 2049:
-                raise ValueError("Invalid magic number, aborting read of labels.")
-            return np.frombuffer(f.read(), dtype=np.uint8)
+            if magic[0] != 2049:
+                raise ValueError(f"Invalid magic number {magic}, aborting read of labels.")
+            num_items = struct.unpack(">I", f.read(4))[0]
+            return np.frombuffer(f.read(), dtype=np.uint8, count=num_items)
 
     def read_images(filename: str) -> np.array:
         with gzip.open(filename, "rb") as f:
             magic, num, rows, cols = struct.unpack(">IIII", f.read(16))
             if magic != 2051:
-                raise ValueError("Invalid magic number, aborting read of images.")
+                raise ValueError(f"Invalid magic number {magic}, aborting read of images.")
             images = np.frombuffer(f.read(), dtype=np.uint8)
             return images.reshape(num, rows, cols, 1)
 
@@ -152,6 +153,8 @@ def train(
 if __name__ == "__main__":
     download_mnist()
     (train_images, train_labels), (test_images, test_labels) = load_mnist()
+    assert train_labels.min() >= 0 and train_labels.max() < 10, "Invalid labels"
+    assert train_images.min() >= 0 and train_images.max() <= 255, "Invalid images"
 
     # using numpy for now, but we'll work on a custom implentation later maybe
     num_classes = 10
@@ -169,6 +172,8 @@ if __name__ == "__main__":
 
     model = Network()
     optimizer = Adam(model.parameters(), lr=LR)
+
+    assert train_images.shape[1] == 28 * 28, "Invalid image shape"
 
     start_time = time.perf_counter()
     train(model, optimizer, train_images, train_labels)
