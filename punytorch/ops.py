@@ -23,7 +23,7 @@ class Add:
 
         return grad for both x and y
         """
-        return np.array([grad]), np.array([grad])
+        return grad, grad
 
 
 class Sub:
@@ -162,7 +162,7 @@ class MatMul:
         d(Z)/dY = X.T @ grad
         """
         x, y = context.args
-        return np.array([y.data * grad]), np.array([x.data * grad])
+        return grad @ y.data.T, x.data.T @ grad
 
 
 class Tanh:
