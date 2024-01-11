@@ -5,6 +5,11 @@ class Optimizer:
     def __init__(self, params):
         self.params = params
 
+    def zero_grad(self):
+        for param in self.params:
+            if param.grad is not None:
+                param.grad = np.zeros_like(param.grad)
+
     def step(self):
         raise NotImplementedError
 
@@ -28,11 +33,6 @@ class Adam(Optimizer):
         self.m = [np.zeros_like(param.data) for param in self.params]
         self.v = [np.zeros_like(param.data) for param in self.params]
         self.t = 0
-
-    def zero_grad(self):
-        for param in self.params:
-            if param.grad is not None:
-                param.grad = np.zeros_like(param.grad)
 
     def step(self):
         self.t += 1
