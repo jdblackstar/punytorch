@@ -16,7 +16,7 @@ class Add:
         return x + y
 
     @staticmethod
-    def backward(context, grad):
+    def backward(grad):
         """
         d(x + y)/dx = 1
         d(x + y)/dy = 1
@@ -35,7 +35,7 @@ class Sub:
         return x - y
 
     @staticmethod
-    def backward(context, grad):
+    def backward(grad):
         """
         d(x - y)/dx = 1
         d(x - y)/dy = -1
@@ -43,8 +43,7 @@ class Sub:
         return [1] for x
         return [-1] for y
         """
-        x, y = context.args
-        return [1], [-1]
+        return grad, -grad
 
 
 class Mul:
@@ -65,7 +64,7 @@ class Mul:
         return (x.data * grad.data) for y
         """
         x, y = context.args
-        return (y.data * grad.data), (x.data * grad.data)
+        return y * grad, x * grad
 
 
 class TrueDiv:
@@ -86,9 +85,9 @@ class TrueDiv:
         return (-grad.data * x.data / (y.data ** 2)) for y
         """
         x, y = context.args
-        return (np.array(grad.data) / y.data), (
-            -np.array(grad.data) * x.data / (y.data**2)
-        )
+        grad_x = grad / y
+        grad_y = -grad * x / (y * y)
+        return grad_x, grad_y
 
 
 class Mod:
@@ -118,11 +117,7 @@ class Mod:
         return an array of zerose like y.data for y
         """
         x, y = context.args
-        if not np.all(y.data.astype(int) == y.data):
-            raise ValueError(
-                "Backward operation for modulus is only defined when y is an integer."
-            )
-        return (np.ones_like(x.data)), (np.zeros_like(y.data))
+        return grad, 0
 
 
 class Pow:
@@ -139,11 +134,13 @@ class Pow:
         d(x ^ y)/dx = y * x^(y - 1)
         d(x ^ y)/dy = x^y * log(x)
 
-        return (y.data * x.data ** (y.data - 1)) for x
-        return (x.data**y.data * np.log(x.data)) for y
+        return grad * (y * x ** (y - 1)) for x
+        return grad * (x**y * np.log(x)) for y
         """
         x, y = context.args
-        return (y.data * x.data ** (y.data - 1)), (x.data**y.data * np.log(x.data))
+        grad_x = grad * (y * x ** (y - 1))
+        grad_y = grad * (x**y * np.log(x))
+        return grad_x, grad_y
 
 
 class MatMul:
@@ -162,16 +159,23 @@ class MatMul:
         d(Z)/dY = X.T @ grad
         """
         x, y = context.args
-        return grad @ y.data.T, x.data.T @ grad
+        return grad @ y.T, x.T @ grad
 
 
 class Tanh:
     @staticmethod
     def forward(x):
-        return np.tanh(x.data)
+        """
+        z = tanh(x)
+        """
+        return np.tanh(x)
 
     @staticmethod
-    def backward(context, grad):
-        (x,) = context.args
-        grad_tanh = 1 - np.tanh(x.data) ** 2
+    def backward(x, grad):
+        """
+        d(tanh(x))/dx = 1 - tanh(x)^2
+
+        return (1 - tanh(x)^2) * grad
+        """
+        grad_tanh = 1 - np.tanh(x) ** 2
         return grad_tanh * grad
