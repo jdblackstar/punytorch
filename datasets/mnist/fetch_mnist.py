@@ -38,6 +38,19 @@ def download_mnist(directory):
 
 
 def load_mnist(directory) -> tuple:
+    files = [
+        "train-images-idx3-ubyte.gz",
+        "train-labels-idx1-ubyte.gz",
+        "t10k-images-idx3-ubyte.gz",
+        "t10k-labels-idx1-ubyte.gz",
+    ]
+
+    for file in files:
+        file_path = os.path.join(directory, file)
+        if not os.path.exists(file_path):
+            download_mnist(directory)
+            break
+
     def read_labels(filename: str) -> np.array:
         with gzip.open(filename, "rb") as f:
             magic = struct.unpack(">I", f.read(4))
