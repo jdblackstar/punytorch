@@ -49,18 +49,23 @@ class Tensor:
         raise ValueError(f"Invalid value passed to tensor. Type: {type(data)}")
 
     def backward(self, grad=None):
+        print("Backward method called")
         if grad is None:
             grad = Tensor(np.ones_like(self.data))
 
         stack = [(self, grad)]
         while stack:
             tensor, grad = stack.pop()
+            print(f"Computing gradients for tensor with data {tensor.data}")
             if tensor.context is not None:
                 grads = tensor.context.op.backward(tensor.context, grad.data)
                 for arg, grad_arg in zip(tensor.context.args, grads):
                     if isinstance(arg, Tensor):
                         grad_arg = Tensor.ensure_tensor(grad_arg)
                         arg.grad = arg.grad + grad_arg.data
+                        print(
+                            f"Updated gradient for tensor with data {arg.data} to {arg.grad}"
+                        )
                         stack.append((arg, grad_arg))
 
     @staticmethod

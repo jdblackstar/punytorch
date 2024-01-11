@@ -1,22 +1,22 @@
 import numpy as np
 
 
-class Function:
-    def __init__(self, op, *args):
-        self.op = op
-        self.args = args
+class Operation:
+    def forward(self, *args):
+        raise NotImplementedError
+
+    def backward(self, context, grad):
+        raise NotImplementedError
 
 
-class Add:
-    @staticmethod
-    def forward(x, y):
+class Add(Operation):
+    def forward(self, x, y):
         """
         z = x + y
         """
         return x + y
 
-    @staticmethod
-    def backward(grad):
+    def backward(self, context, grad):
         """
         d(x + y)/dx = 1
         d(x + y)/dy = 1
@@ -26,16 +26,14 @@ class Add:
         return grad, grad
 
 
-class Sub:
-    @staticmethod
-    def forward(x, y):
+class Sub(Operation):
+    def forward(self, x, y):
         """
         z = x - y
         """
         return x - y
 
-    @staticmethod
-    def backward(grad):
+    def backward(self, context, grad):
         """
         d(x - y)/dx = 1
         d(x - y)/dy = -1
@@ -46,16 +44,14 @@ class Sub:
         return grad, -grad
 
 
-class Mul:
-    @staticmethod
-    def forward(x, y):
+class Mul(Operation):
+    def forward(self, x, y):
         """
         z = x * y
         """
         return x * y
 
-    @staticmethod
-    def backward(context, grad):
+    def backward(self, context, grad):
         """
         d(x * y)/dx = y
         d(x * y)/dy = x
@@ -67,16 +63,14 @@ class Mul:
         return y * grad, x * grad
 
 
-class TrueDiv:
-    @staticmethod
-    def forward(x, y):
+class TrueDiv(Operation):
+    def forward(self, x, y):
         """
         z = x / y
         """
         return x / y
 
-    @staticmethod
-    def backward(context, grad):
+    def backward(self, context, grad):
         """
         d(x / y)/dx = 1/y
         d(x / y)/dy = -x/y^2
@@ -90,7 +84,7 @@ class TrueDiv:
         return grad_x, grad_y
 
 
-class Mod:
+class Mod(Operation):
     """
     WARNING: The modulus operation is not differentiable at integer points,
     and the derivative with respect to `y` is undefined. This implementation
@@ -100,15 +94,13 @@ class Mod:
     for all use cases.
     """
 
-    @staticmethod
-    def forward(x, y):
+    def forward(self, x, y):
         """
         z = x % y
         """
         return x % y
 
-    @staticmethod
-    def backward(context, grad):
+    def backward(self, context, grad):
         """
         d(x % y)/dx = 1
         d(x % y)/dy = 0
@@ -120,16 +112,14 @@ class Mod:
         return grad, 0
 
 
-class Pow:
-    @staticmethod
-    def forward(x, y):
+class Pow(Operation):
+    def forward(self, x, y):
         """
         z = x ^ y
         """
         return x**y
 
-    @staticmethod
-    def backward(context, grad):
+    def backward(self, context, grad):
         """
         d(x ^ y)/dx = y * x^(y - 1)
         d(x ^ y)/dy = x^y * log(x)
@@ -143,16 +133,14 @@ class Pow:
         return grad_x, grad_y
 
 
-class MatMul:
-    @staticmethod
-    def forward(x, y):
+class MatMul(Operation):
+    def forward(self, x, y):
         """
         z = x @ y
         """
         return x @ y
 
-    @staticmethod
-    def backward(context, grad):
+    def backward(self, context, grad):
         """
         If Z = X @ Y, then
         d(Z)/dX = grad @ Y.T
@@ -162,16 +150,14 @@ class MatMul:
         return grad @ y.T, x.T @ grad
 
 
-class Tanh:
-    @staticmethod
-    def forward(x):
+class Tanh(Operation):
+    def forward(self, x):
         """
         z = tanh(x)
         """
         return np.tanh(x)
 
-    @staticmethod
-    def backward(x, grad):
+    def backward(self, x, grad):
         """
         d(tanh(x))/dx = 1 - tanh(x)^2
 
