@@ -1,18 +1,14 @@
 # Standard library imports
-import gzip
-import os
 import random
-import struct
 import time
 
 # Third-party imports
 import numpy as np  # will remove this ASAP
-import requests
 from tqdm import tqdm
 
+from datasets.mnist.fetch_mnist import download_mnist, load_mnist
 from punytorch.helpers import is_one_hot
 from punytorch.losses import CrossEntropyLoss
-from punytorch.nn.models import MLP
 from punytorch.nn.modules import Linear, Module
 from punytorch.nn.optimizers import Adam
 from punytorch.tensor import Tensor
@@ -21,67 +17,7 @@ from punytorch.tensor import Tensor
 EPOCHS = 1
 BATCH_SIZE = 32
 LR = 4e-3
-MNIST_DIR = "mnist"
-
-
-def download_mnist():
-    base_url = "https://github.com/golbin/TensorFlow-MNIST/raw/master/mnist/data/"
-    files = [
-        "train-images-idx3-ubyte.gz",
-        "train-labels-idx1-ubyte.gz",
-        "t10k-images-idx3-ubyte.gz",
-        "t10k-labels-idx1-ubyte.gz",
-    ]
-
-    save_dir = MNIST_DIR
-    os.makedirs(save_dir, exist_ok=True)
-
-    for file in files:
-        file_path = os.path.join(save_dir, file)
-
-        if os.path.exists(file_path):
-            continue
-
-        url = base_url + file
-        response = requests.get(url, stream=True)
-        if response.status_code == 200:
-            with open(file_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            print(f"Downloaded {file}")
-        else:
-            print(
-                f"Failed to download {file}. HTTP Response Code: {response.status_code}"
-            )
-
-
-def load_mnist() -> tuple:
-    def read_labels(filename: str) -> np.array:
-        with gzip.open(filename, "rb") as f:
-            magic = struct.unpack(">I", f.read(4))
-            if magic[0] != 2049:
-                raise ValueError(
-                    f"Invalid magic number {magic}, aborting read of labels."
-                )
-            num_items = struct.unpack(">I", f.read(4))[0]
-            return np.frombuffer(f.read(), dtype=np.uint8, count=num_items)
-
-    def read_images(filename: str) -> np.array:
-        with gzip.open(filename, "rb") as f:
-            magic, num, rows, cols = struct.unpack(">IIII", f.read(16))
-            if magic != 2051:
-                raise ValueError(
-                    f"Invalid magic number {magic}, aborting read of images."
-                )
-            images = np.frombuffer(f.read(), dtype=np.uint8)
-            return images.reshape(num, rows, cols, 1)
-
-    train_labels = read_labels(f"{MNIST_DIR}/train-labels-idx1-ubyte.gz")
-    train_images = read_images(f"{MNIST_DIR}/train-images-idx3-ubyte.gz")
-    test_labels = read_labels(f"{MNIST_DIR}/t10k-labels-idx1-ubyte.gz")
-    test_images = read_images(f"{MNIST_DIR}/t10k-images-idx3-ubyte.gz")
-
-    return (train_images, train_labels), (test_images, test_labels)
+MNIST_DIR = "datasets/mnist"
 
 
 def get_batch(images: Tensor, labels: Tensor):
@@ -155,8 +91,8 @@ def train(
 
 
 if __name__ == "__main__":
-    download_mnist()
-    (train_images, train_labels), (test_images, test_labels) = load_mnist()
+    download_mnist(MNIST_DIR)
+    (train_images, train_labels), (test_images, test_labels) = load_mnist(MNIST_DIR)
     assert train_labels.min() >= 0 and train_labels.max() < 10, "Invalid labels"
     assert train_images.min() >= 0 and train_images.max() <= 255, "Invalid images"
 
