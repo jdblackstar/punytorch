@@ -6,15 +6,15 @@ import struct
 import time
 
 # Third-party imports
-import numpy as np # will remove this ASAP
+import numpy as np  # will remove this ASAP
 import requests
 from tqdm import tqdm
 
-from nn.models import MLP
-from nn.modules import Linear, Module
-from nn.optimizers import Adam
 from punytorch.helpers import is_one_hot
 from punytorch.losses import CrossEntropyLoss
+from punytorch.nn.models import MLP
+from punytorch.nn.modules import Linear, Module
+from punytorch.nn.optimizers import Adam
 from punytorch.tensor import Tensor
 
 # Constants
@@ -60,7 +60,9 @@ def load_mnist() -> tuple:
         with gzip.open(filename, "rb") as f:
             magic = struct.unpack(">I", f.read(4))
             if magic[0] != 2049:
-                raise ValueError(f"Invalid magic number {magic}, aborting read of labels.")
+                raise ValueError(
+                    f"Invalid magic number {magic}, aborting read of labels."
+                )
             num_items = struct.unpack(">I", f.read(4))[0]
             return np.frombuffer(f.read(), dtype=np.uint8, count=num_items)
 
@@ -68,7 +70,9 @@ def load_mnist() -> tuple:
         with gzip.open(filename, "rb") as f:
             magic, num, rows, cols = struct.unpack(">IIII", f.read(16))
             if magic != 2051:
-                raise ValueError(f"Invalid magic number {magic}, aborting read of images.")
+                raise ValueError(
+                    f"Invalid magic number {magic}, aborting read of images."
+                )
             images = np.frombuffer(f.read(), dtype=np.uint8)
             return images.reshape(num, rows, cols, 1)
 
