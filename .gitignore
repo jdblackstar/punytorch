@@ -1,6 +1,15 @@
+# editor things
+.DS_Store
+
+# secrets
+.env
+
+# python stuff
 __pycache__/
 .pytest_cache
-mnist/
-.env
-.DS_Store
+
+# dataset files
+*.gz
+
+# DO NOT LEAK
 agi_brain_final_v42.tfmodel
