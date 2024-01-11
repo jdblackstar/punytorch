@@ -3,3 +3,4 @@ __pycache__/
 mnist/
 .env
 .DS_Store
+agi_brain_final_v42.tfmodel
