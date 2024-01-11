@@ -14,8 +14,8 @@ numpy = "^1.26.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.4"
-isort = "^5.13.2"
 black = "^23.12.1"
+matplotlib = "^3.8.2"
 
 [build-system]
 requires = ["poetry-core"]
