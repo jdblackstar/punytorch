@@ -6,7 +6,7 @@ import struct
 import time
 
 # Third-party imports
-import numpy as np
+import numpy as np # will remove this ASAP
 import requests
 from tqdm import tqdm
 

@@ -1,4 +1,4 @@
-from mnist import load_mnist
+from examples.mnist import load_mnist
 
 
 def test_mnist():
