@@ -8,11 +8,14 @@ from punytorch.ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, Tanh, TrueD
 
 
 class Tensor:
-    def __init__(self, data, requires_grad=False) -> None:
-        self.data = data if isinstance(data, np.ndarray) else np.array(data)
-        self.context = None
-        self.grad = np.zeros_like(self.data, dtype=float)
+    def __init__(self, data, requires_grad=False):
+        if isinstance(data, np.ndarray):
+            self.data = data
+        else:
+            self.data = np.array(data)
         self.requires_grad = requires_grad
+        self.grad = None
+        self.context = None
 
     @property
     def shape(self):
@@ -49,23 +52,20 @@ class Tensor:
         raise ValueError(f"Invalid value passed to tensor. Type: {type(data)}")
 
     def backward(self, grad=None):
-        print("Backward method called")
         if grad is None:
             grad = Tensor(np.ones_like(self.data))
 
         stack = [(self, grad)]
         while stack:
             tensor, grad = stack.pop()
-            print(f"Computing gradients for tensor with data {tensor.data}")
             if tensor.context is not None:
-                grads = tensor.context.op.backward(tensor.context, grad.data)
+                grads = tensor.context.op.backward(tensor.context, grad)
                 for arg, grad_arg in zip(tensor.context.args, grads):
                     if isinstance(arg, Tensor):
-                        grad_arg = Tensor.ensure_tensor(grad_arg)
-                        arg.grad = arg.grad + grad_arg.data
-                        print(
-                            f"Updated gradient for tensor with data {arg.data} to {arg.grad}"
-                        )
+                        if arg.grad is None:
+                            arg.grad = grad_arg
+                        else:
+                            arg.grad += grad_arg
                         stack.append((arg, grad_arg))
 
     @staticmethod
@@ -119,7 +119,7 @@ class Tensor:
 
     def __add__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Add.forward(self.data, other.data))
+        result = Tensor(Add.forward(self, other))
         if self.requires_grad or other.requires_grad:
             result.context = Function(Add, self, other)
             result.requires_grad = True
@@ -127,7 +127,7 @@ class Tensor:
 
     def __sub__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Sub.forward(self.data, other.data))
+        result = Tensor(Sub.forward(self, other))
         if self.requires_grad or other.requires_grad:
             result.context = Function(Sub, self, other)
             result.requires_grad = True
@@ -135,7 +135,7 @@ class Tensor:
 
     def __mul__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Mul.forward(self.data, other.data))
+        result = Tensor(Mul.forward(self, other))
         if self.requires_grad or other.requires_grad:
             result.context = Function(Mul, self, other)
             result.requires_grad = True
@@ -143,7 +143,7 @@ class Tensor:
 
     def __truediv__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(TrueDiv.forward(self.data, other.data))
+        result = Tensor(TrueDiv.forward(self, other))
         if self.requires_grad or other.requires_grad:
             result.context = Function(TrueDiv, self, other)
             result.requires_grad = True
@@ -151,7 +151,7 @@ class Tensor:
 
     def __mod__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Mod.forward(self.data, other.data))
+        result = Tensor(Mod.forward(self, other))
         if self.requires_grad or other.requires_grad:
             result.context = Function(Mod, self, other)
             result.requires_grad = True
@@ -159,7 +159,7 @@ class Tensor:
 
     def __pow__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Pow.forward(self.data, other.data))
+        result = Tensor(Pow.forward(self, other))
         if self.requires_grad or other.requires_grad:
             result.context = Function(Pow, self, other)
             result.requires_grad = True
@@ -167,7 +167,7 @@ class Tensor:
 
     def __matmul__(self, other):
         other = Tensor.ensure_tensor(other)
-        result = Tensor(MatMul.forward(self.data, other.data))
+        result = Tensor(MatMul.forward(self, other))
         if self.requires_grad or other.requires_grad:
             result.context = Function(MatMul, self, other)
             result.requires_grad = True
