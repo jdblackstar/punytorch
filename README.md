@@ -6,6 +6,9 @@ The goal is to have something very simple that will let me implement and experim
 
 # Usage:
 `curl -sSL https://install.python-poetry.org | python -`
+
 `poetry install`
+
 `poetry shell`
+
 `python examples/mnist.py`
