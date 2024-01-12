@@ -9,6 +9,7 @@ class ReLU:
         """
         return np.maximum(0, x)
 
+    @staticmethod
     def backward(context, grad):
         """
         d(max(0, x))/dx = 1 if x > 0 else 0
