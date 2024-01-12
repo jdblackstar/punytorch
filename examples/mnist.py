@@ -14,7 +14,7 @@ from punytorch.nn.optimizers import Adam
 from punytorch.tensor import Tensor
 
 # Constants
-EPOCHS = 1
+EPOCHS = 10
 BATCH_SIZE = 32
 LR = 4e-3
 MNIST_DIR = "datasets/mnist"
@@ -73,7 +73,7 @@ def train(
         with tqdm(total=num_batches) as pbar:
             for batch_images, batch_labels in batch_generator:
                 # Convert one-hot encoded labels to class indices
-                batch_labels = np.argmax(batch_labels, axis=-1)
+                # batch_labels = np.argmax(batch_labels, axis=-1)
 
                 optimizer.zero_grad()
                 pred = model.forward(batch_images)
@@ -105,10 +105,16 @@ if __name__ == "__main__":
     print(f"Train labels one-hot encoded: {is_one_hot(train_labels)}")
     print(f"Test labels one-hot encoded: {is_one_hot(test_labels)}")
 
-    train_labels, test_labels = map(Tensor, [train_labels, test_labels])
+    train_labels, test_labels = map(
+        lambda x: Tensor(x, requires_grad=True), [train_labels, test_labels]
+    )
 
-    train_images = Tensor(train_images.reshape(-1, 28 * 28) / 255).float()
-    test_images = Tensor(test_images.reshape(-1, 28 * 28) / 255).float()
+    train_images = Tensor(
+        train_images.reshape(-1, 28 * 28) / 255, requires_grad=True
+    ).float()
+    test_images = Tensor(
+        test_images.reshape(-1, 28 * 28) / 255, requires_grad=True
+    ).float()
 
     model = Network()
     optimizer = Adam(model.parameters(), lr=LR)

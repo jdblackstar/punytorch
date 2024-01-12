@@ -1,6 +1,7 @@
 import numpy as np
 
 from punytorch.tensor import Tensor
+from punytorch.activations import Softmax
 
 
 class MSELoss:
@@ -15,11 +16,11 @@ class MSELoss:
 
 class CrossEntropyLoss:
     @staticmethod
-    def forward(y_pred, y_true):
-        exps = np.exp(y_pred - np.max(y_pred, axis=1, keepdims=True))
-        probs = exps / np.sum(exps, axis=1, keepdims=True) + 1e-22
-        log_likelihood = -np.log(probs[np.arange(len(y_true)), y_true.astype(int)])
-        return Tensor(np.mean(log_likelihood))  # Wrap the result in a Tensor
+    def forward(y_pred: Tensor, y_true: Tensor) -> Tensor:
+        probs = Softmax.forward(y_pred)
+        log_likelihood = -np.log(probs) * y_true  # Element-wise multiplication
+        loss = np.sum(log_likelihood) / len(y_true)
+        return Tensor(loss, requires_grad=True)
 
     @staticmethod
     def backward(y_pred, y_true):

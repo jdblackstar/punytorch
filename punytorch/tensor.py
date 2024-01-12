@@ -14,7 +14,7 @@ class Tensor:
         else:
             self.data = np.array(data)
         self.requires_grad = requires_grad
-        self.grad = None
+        self.grad = np.zeros_like(self.data) if requires_grad else None
         self.context = None
 
     @property
@@ -63,10 +63,7 @@ class Tensor:
                 grads = tensor.context.op.backward(tensor.context, grad)
                 for arg, grad_arg in zip(tensor.context.args, grads):
                     if isinstance(arg, Tensor):
-                        if arg.grad is None:
-                            arg.grad = grad_arg
-                        else:
-                            arg.grad += grad_arg
+                        arg.grad += grad_arg
                         stack.append((arg, grad_arg))
 
     @staticmethod
