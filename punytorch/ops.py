@@ -1,6 +1,12 @@
 import numpy as np
 
 
+class Function:
+    def __init__(self, op, *args):
+        self.op = op
+        self.args = args
+
+
 class Operation:
     def forward(self, *args):
         raise NotImplementedError
@@ -10,13 +16,15 @@ class Operation:
 
 
 class Add(Operation):
-    def forward(self, x, y):
+    @staticmethod
+    def forward(x, y):
         """
         z = x + y
         """
-        return x + y
+        return x.data + y.data
 
-    def backward(self, context, grad):
+    @staticmethod
+    def backward(context, grad):
         """
         d(x + y)/dx = 1
         d(x + y)/dy = 1
@@ -27,13 +35,15 @@ class Add(Operation):
 
 
 class Sub(Operation):
-    def forward(self, x, y):
+    @staticmethod
+    def forward(x, y):
         """
         z = x - y
         """
-        return x - y
+        return x.data - y.data
 
-    def backward(self, context, grad):
+    @staticmethod
+    def backward(context, grad):
         """
         d(x - y)/dx = 1
         d(x - y)/dy = -1
@@ -45,13 +55,15 @@ class Sub(Operation):
 
 
 class Mul(Operation):
-    def forward(self, x, y):
+    @staticmethod
+    def forward(x, y):
         """
         z = x * y
         """
-        return x * y
+        return x.data * y.data
 
-    def backward(self, context, grad):
+    @staticmethod
+    def backward(context, grad):
         """
         d(x * y)/dx = y
         d(x * y)/dy = x
@@ -64,13 +76,15 @@ class Mul(Operation):
 
 
 class TrueDiv(Operation):
-    def forward(self, x, y):
+    @staticmethod
+    def forward(x, y):
         """
         z = x / y
         """
-        return x / y
+        return x.data / y.data
 
-    def backward(self, context, grad):
+    @staticmethod
+    def backward(context, grad):
         """
         d(x / y)/dx = 1/y
         d(x / y)/dy = -x/y^2
@@ -94,13 +108,15 @@ class Mod(Operation):
     for all use cases.
     """
 
-    def forward(self, x, y):
+    @staticmethod
+    def forward(x, y):
         """
         z = x % y
         """
-        return x % y
+        return x.data % y.data
 
-    def backward(self, context, grad):
+    @staticmethod
+    def backward(context, grad):
         """
         d(x % y)/dx = 1
         d(x % y)/dy = 0
@@ -113,13 +129,15 @@ class Mod(Operation):
 
 
 class Pow(Operation):
-    def forward(self, x, y):
+    @staticmethod
+    def forward(x, y):
         """
         z = x ^ y
         """
-        return x**y
+        return x.data**y.data
 
-    def backward(self, context, grad):
+    @staticmethod
+    def backward(context, grad):
         """
         d(x ^ y)/dx = y * x^(y - 1)
         d(x ^ y)/dy = x^y * log(x)
@@ -134,13 +152,15 @@ class Pow(Operation):
 
 
 class MatMul(Operation):
-    def forward(self, x, y):
+    @staticmethod
+    def forward(x, y):
         """
         z = x @ y
         """
-        return x @ y
+        return x.data @ y.data
 
-    def backward(self, context, grad):
+    @staticmethod
+    def backward(context, grad):
         """
         If Z = X @ Y, then
         d(Z)/dX = grad @ Y.T
@@ -151,13 +171,15 @@ class MatMul(Operation):
 
 
 class Tanh(Operation):
-    def forward(self, x):
+    @staticmethod
+    def forward(x):
         """
         z = tanh(x)
         """
         return np.tanh(x)
 
-    def backward(self, x, grad):
+    @staticmethod
+    def backward(x, grad):
         """
         d(tanh(x))/dx = 1 - tanh(x)^2
 
