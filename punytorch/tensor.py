@@ -27,7 +27,8 @@ class Tensor:
     def __getitem__(self, index):
         return self.data[index]
 
-    def t(self):
+    @property
+    def T(self):
         return Tensor(np.transpose(self.data))
 
     def tolist(self):
