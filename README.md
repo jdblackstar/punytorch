@@ -12,3 +12,13 @@ The goal is to have something very simple that will let me implement and experim
 `poetry shell`
 
 `python examples/mnist.py`
+
+# FAQs
+> can it run an LLM?
+nope
+
+> can it do classification jobs?
+only 1, and barely
+
+> what about computer vision?
+punytorch is blind
