@@ -97,10 +97,28 @@ class Linear(Module):
         self.bias = Parameter(np.zeros(out_features)) if bias else None
 
     def forward(self, x):
+        self.input = x
         x = x @ self.weight.T
         if self.bias:
             x = x + self.bias
         return x
+
+    def backward(self, grad):
+        # Compute the gradient with respect to the input
+        grad_input = grad @ self.weight.data
+
+        # Compute the gradient with respect to the weights
+        grad_weight = self.input.T @ grad
+
+        # Compute the gradient with respect to the bias
+        grad_bias = np.sum(grad, axis=0)
+
+        # Store the gradients in the .grad attributes of the weights and bias
+        self.weight.grad = grad_weight
+        if self.bias is not None:
+            self.bias.grad = grad_bias
+
+        return grad_input
 
 
 class ModuleList(Module, list):
