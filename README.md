@@ -4,14 +4,15 @@ punytorch is a simple and feature poor deep learning library implemented in Pyth
 
 The goal is to have something very simple that will let me implement and experiment with new concepts quickly in my deep learning journey. I'm not trying to build a production-ready library, but rather a learning tool.
 
-# Usage:
-`curl -sSL https://install.python-poetry.org | python -`
+# Example usage
 
-`poetry install`
+1. If poetry is not installed, install it via: `curl -sSL https://install.python-poetry.org | python -`
 
-`poetry shell`
+2.  Run `poetry install` to install the dependencies
 
-`python examples/mnist.py`
+3. Run `poetry shell` to activate the virtual environment
+
+4. Run `python examples/mnist.py` to train a simple model on the MNIST dataset
 
 # FAQs
 > can it run an LLM?
