@@ -5,11 +5,12 @@ import os
 from datasets.mnist.fetch_mnist import download_mnist, load_mnist
 
 
-def visualize_mnist(images: np.array, labels: np.array):
-    fig, axes = plt.subplots(10, 10, figsize=(20, 20))
+def visualize_mnist(images: np.array, labels: np.array, grid_size=5):
+    fig, axes = plt.subplots(grid_size, grid_size, figsize=(10, 10))
+    indices = np.random.choice(len(images), grid_size**2, replace=False)
     for i, ax in enumerate(axes.flat):
-        ax.imshow(images[i], cmap="gray")
-        ax.set_title(f"Label: {labels[i]}")
+        ax.imshow(images[indices[i]], cmap="gray")
+        ax.set_title(f"Label: {labels[indices[i]]}")
         ax.axis("off")
     plt.show()
 
