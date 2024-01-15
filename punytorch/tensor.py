@@ -67,7 +67,9 @@ class Tensor:
                 grads = tensor.context.op.backward(tensor.context, grad)
                 for arg, grad_arg in zip(tensor.context.args, grads):
                     if isinstance(arg, Tensor) and arg.requires_grad:
-                        arg.grad += grad_arg
+                        if arg.grad is None:
+                            arg.grad = np.zeros_like(arg.data)
+                        arg.grad += grad_arg.data  # Ensure grad_arg is a numpy array
                         stack.append((arg, grad_arg))
 
     @staticmethod
