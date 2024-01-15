@@ -7,7 +7,7 @@ from datasets.mnist.fetch_mnist import download_mnist, load_mnist
 
 
 def visualize_mnist(images: np.array, labels: np.array, grid_size=5):
-    # going to add some randomness here to get a random slice of data every time we want to visualize
+    # going to add some randomness here to get a random slice of data each time
     indices = np.random.choice(len(images), grid_size**2, replace=False)
 
     fig, axes = plt.subplots(
