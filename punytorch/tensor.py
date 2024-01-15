@@ -66,7 +66,7 @@ class Tensor:
             if tensor.context is not None:
                 grads = tensor.context.op.backward(tensor.context, grad)
                 for arg, grad_arg in zip(tensor.context.args, grads):
-                    if isinstance(arg, Tensor):
+                    if isinstance(arg, Tensor) and arg.requires_grad:
                         arg.grad += grad_arg
                         stack.append((arg, grad_arg))
 
