@@ -14,7 +14,11 @@ class Tensor:
         else:
             self.data = np.array(data)
         self.requires_grad = requires_grad
-        self.grad = np.zeros_like(self.data) if requires_grad else None
+        # if requires_grad is True, then we need to initialize the gradient to zeros
+        # and make sure that they're floats, since backprop uses floats
+        self.grad = (
+            np.zeros_like(self.data, dtype=np.float64) if requires_grad else None
+        )
         self.context = None
 
     @property
@@ -62,7 +66,7 @@ class Tensor:
             if tensor.context is not None:
                 grads = tensor.context.op.backward(tensor.context, grad)
                 for arg, grad_arg in zip(tensor.context.args, grads):
-                    if isinstance(arg, Tensor):
+                    if isinstance(arg, Tensor) and arg.requires_grad:
                         arg.grad += grad_arg
                         stack.append((arg, grad_arg))
 

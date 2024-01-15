@@ -4,7 +4,7 @@ from punytorch.tensor import Tensor
 
 
 def test_ReLU():
-    x = Tensor(np.array([-2, -1, 0, 1, 2]))
+    x = Tensor(np.array([-2, -1, 0, 1, 2]), requires_grad=True)
     y = x.relu()
     assert np.all(y.data == np.array([0, 0, 0, 1, 2]))
     y.backward(np.ones_like(x.data))
@@ -12,7 +12,7 @@ def test_ReLU():
 
 
 def test_Sigmoid():
-    x = Tensor(np.array([0, 1, 2, 3, 4, 5]))
+    x = Tensor(np.array([0, 1, 2, 3, 4, 5]), requires_grad=True)
     y = x.sigmoid()
     assert np.allclose(y.data, 1 / (1 + np.exp(-x.data)))
     y.backward()
