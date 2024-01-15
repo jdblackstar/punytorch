@@ -1,3 +1,4 @@
+import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -15,7 +16,7 @@ def visualize_mnist(images: np.array, labels: np.array, grid_size=5):
     plt.show()
 
 
-def main():
+def main(grid_size: int):
     MNIST_DIR = "datasets/mnist"
     if not os.path.exists(MNIST_DIR) or not os.listdir(MNIST_DIR):
         download_mnist(MNIST_DIR)
@@ -28,8 +29,16 @@ def main():
         train_labels
     ), "Mismatch between number of images and labels."
 
-    visualize_mnist(train_images, train_labels)
+    visualize_mnist(train_images, train_labels, grid_size=grid_size)
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Visualize MNIST data.")
+    parser.add_argument(
+        "--grid_size",
+        type=int,
+        default=5,
+        help="Sizes of the image grid to display. Will always be square.",
+    )
+    args = parser.parse_args()
+    main(grid_size=args.grid_size)
