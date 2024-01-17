@@ -16,6 +16,7 @@ numpy = "^1.26.3"
 pytest = "^7.4.4"
 black = "^23.12.1"
 matplotlib = "^3.8.2"
+torch = "^2.1.2"
 
 [build-system]
 requires = ["poetry-core"]
