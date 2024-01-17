@@ -222,6 +222,63 @@ class Linear(Module):
         return grad_input
 
 
+class Embedding(Module):
+    def __init__(self, num_embeddings: int, embedding_dim: int):
+        """
+        Initializes the Embedding module.
+
+        Args:
+            num_embeddings (int): The size of the vocabulary, i.e., the number of distinct tokens.
+            embedding_dim (int): The size of the embedding vectors.
+        """
+        super().__init__()
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
+        self.weight = Parameter(
+            np.random.rand(num_embeddings, embedding_dim)
+        )  # do we need to divide by embedding_dim here?
+
+    def parameters(self):
+        """
+        Returns a list of all parameters in the module.
+
+        Returns:
+            list[Parameter]: A list containing the embedding matrix, which is the only parameter of the Embedding layer.
+        """
+        return [self.weight]
+
+    def forward(self, x: Tensor):
+        """
+        Defines the computation performed at every call.
+
+        Args:
+            x (Tensor): The input data, which are indices of the tokens in the vocabulary.
+
+        Returns:
+            Tensor: The output of the embedding layer, which are the embedding vectors corresponding to the input indices.
+        """
+        return self.weight[x]
+
+    def backward(self, grad: Tensor) -> Tensor:
+        """
+        Computes the backward pass of the Embedding module for backpropagation.
+
+        Args:
+            grad (Tensor): The gradient of the loss with respect to the output of this module.
+
+        Returns:
+            Tensor: The gradient of the loss with respect to the input of this module.
+        """
+        # Compute the gradient with respect to the weights
+        grad_weight = np.zeros_like(self.weight.data)
+        np.add.at(grad_weight, self.input, grad)
+
+        # Store the gradients in the .grad attributes of the weights
+        self.weight.grad = grad_weight
+
+        return grad
+
+
 class ModuleList(Module, list):
     """
     Holds submodules in a list.
