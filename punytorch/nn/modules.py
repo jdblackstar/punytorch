@@ -12,7 +12,7 @@ class Module:
     """
     Base class for all neural network modules.
 
-    Your models should also subclass this class.
+    All models should also subclass this class.
 
     Modules can also contain other Modules, allowing to nest them in
     a tree structure. You can assign the submodules as regular attributes.
