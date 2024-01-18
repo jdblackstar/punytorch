@@ -110,3 +110,37 @@ class MHA(Module):
         wei = Softmax(wei, dim=-1)
         x = wei @ v
         return x
+
+
+class MLP(Module):
+    def __init__(self, in_features, out_features, expansion_size: int = 3):
+        """
+        Initializes the MLP module.
+
+        Args:
+            in_features (int): The number of input features.
+            out_features (int): The number of output features.
+            expansion_size (int, optional): The factor by which the input features are expanded in the hidden layers. Defaults to 3.
+        """
+        super().__init__()
+        self.w1 = Linear(in_features, in_features * expansion_size)
+        self.w2 = Linear(in_features * expansion_size, in_features * expansion_size)
+        self.w3 = Linear(in_features * expansion_size, out_features)
+
+    def forward(self, x):
+        """
+        Defines the computation performed at every call.
+
+        Args:
+            x (Tensor): The input data.
+
+        Returns:
+            Tensor: The output of the MLP.
+        """
+        x = self.w1(x)
+        x = ReLU(x)
+        x = self.w2(x)
+        x = ReLU(x)
+        x = self.w3(x)
+        return x
+
