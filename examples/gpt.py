@@ -222,7 +222,19 @@ class Block(Module):
 
 
 class GPT(Module):
+    """
+    The GPT class represents the GPT model, which consists of token embeddings, position embeddings,
+    a list of transformer blocks, a normalization layer, and a projection layer.
+    """
+
     def __init__(self, model_args: ModelArgs, device: str):
+        """
+        Initializes the GPT model.
+
+        Args:
+            model_args (ModelArgs): The arguments for the model, including dimensions and sequence length.
+            device (str): The device to run the model on ("cpu" or "gpu").
+        """
         super().__init__()
         self.device = device
         self.token_embedding = Embedding(model_args.vocab_size, model_args.d_model)
@@ -234,6 +246,15 @@ class GPT(Module):
         self.proj = Linear(model_args.d_model, model_args.vocab_size)
 
     def forward(self, x):
+        """
+        Defines the computation performed at every call.
+
+        Args:
+            x (Tensor): The input data.
+
+        Returns:
+            Tensor: The output of the GPT model.
+        """
         B, T = x.shape
 
         tok_emb = self.token_embedding(x)
