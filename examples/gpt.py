@@ -340,5 +340,26 @@ def main():
     model = GPT(model_args, hyperparameters.device).to(hyperparameters.device)
     optimizer = optim.Adam(model.parameters(), lr=hyperparameters.learning_rate)
 
+    # TODO:
+    # 1. loop through hypermarameters.max_iters
+    #    at each iteration, check if we are at the eval_iterval
+    #    if yes, print the loss and generate some text
+    #    if no, train the model
+    # 2. get a batch of training data and targets using get_batch function
+    # 3. feed the data to the model to get the model's predictions (logits)
+    # 4. reshape the logits and targets to be two-dimensional
+    #    the first dimension is the batch size times the sequence length
+    #    the second dimension is the number of classes
+    # 5. compute the loss using the logits and targets
+    # 6. backpropagate the loss and update the model's parameters
+    # 7. update model parameters using gradients and the optimizer's step function
+    # 8. optimizer.zero_grad()
+    # 9. if the current iteration is a multiple of 50, print current iteration and the loss
+    #
+    # after loop:
+    # - create another context tensor
+    # - generate some new tokens
+    # - decode these tokens into text
+    # - print the text
 if __name__ == "__main__":
     main()
