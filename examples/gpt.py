@@ -2,6 +2,7 @@
 from punytorch.tensor import Tensor
 from punytorch.nn.modules import Module, Linear, Embedding, Parameter, ModuleList
 from punytorch.activations import Softmax, ReLU
+from punytorch.losses import CrossEntropyLoss
 from punytorch.nn.optimizers import Adam
 
 # I think pytorch.nn.function is the same as our optimizers file
@@ -268,5 +269,44 @@ class GPT(Module):
         logits = self.proj(x)
 
         return logits
+
+
+@Tensor.no_grad()
+def estimate_loss(model, eval_iters):
+    """
+    Estimates the loss of the model over a number of iterations.
+
+    This function runs the model in evaluation mode and computes the average loss over a specified number of iterations.
+    The loss is computed separately for the training and validation sets.
+
+    Args:
+        model (Module): The model to evaluate.
+        eval_iters (int): The number of iterations to run for the evaluation.
+
+    Returns:
+        dict: A dictionary with the average loss for the training and validation sets.
+    """
+    out = {}
+    model.eval()
+
+    for split in ["train", "val"]:
+        losses = []
+        for k in range(eval_iters):
+            data, targets = get_batch(split)
+            logits = model(data)
+
+            B, T, C = logits.shape
+            logits = logits.view(B * T, C)
+            targets = targets.view(B * T)
+            loss = CrossEntropyLoss.forward(logits, targets)
+            losses.append(loss.item())
+        out[split] = sum(losses) / len(losses)
+    model.train()
+    return out
+
+
+@Tensor.no_grad()
+def get_batch():
+    raise NotImplementedError
 
 
