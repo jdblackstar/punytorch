@@ -144,3 +144,43 @@ class MLP(Module):
         x = self.w3(x)
         return x
 
+
+class RMSNorm(Module):
+    def __init__(self, dim: int, eps: float = 1e-5):
+        """
+        Initializes the RMSNorm module.
+
+        Args:
+            dim (int): The dimension over which to compute the root mean square.
+            eps (float, optional): A small value to avoid division by zero. Defaults to 1e-5.
+        """
+        super().__init__()
+        self.eps = eps
+        self.weight = Parameter(Tensor(np.ones(dim)))
+
+    def _norm(self, x: Tensor):
+        """
+        Computes the root mean square of the input tensor along the last dimension.
+
+        Args:
+            x (Tensor): The input tensor.
+
+        Returns:
+            Tensor: The normalized tensor.
+        """
+        rms = ((x**2).mean(axis=-1, keepdim=True) + self.eps) ** 0.5
+        return x / rms
+
+    def forward(self, x):
+        """
+        Defines the computation performed at every call.
+
+        Args:
+            x (Tensor): The input data.
+
+        Returns:
+            Tensor: The output of the RMSNorm.
+        """
+        output = self._norm(x)
+        return output * self.weight
+
