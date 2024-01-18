@@ -310,3 +310,35 @@ def get_batch():
     raise NotImplementedError
 
 
+def main():
+    # hyperparameters and modelargs
+    hyperparameters = Hyperparameters(
+        batch_size=64,
+        block_size=128,
+        max_iters=5000,
+        eval_interval=500,
+        learning_rate=3e-4,
+        device="cpu",
+        eval_iters=100,
+        num_embeds=128 * 2,
+        num_heads=4,
+        num_layers=2,
+        dropout=0.2,
+    )
+
+    # fmt: off
+    model_args = ModelArgs(
+        seq_len=10,
+        d_model=16,
+        n_heads=2,
+        vocab_size=10,
+        num_layers=2,
+        esp=1e-5,
+    )
+    # fmt: on
+
+    model = GPT(model_args, hyperparameters.device).to(hyperparameters.device)
+    optimizer = optim.Adam(model.parameters(), lr=hyperparameters.learning_rate)
+
+if __name__ == "__main__":
+    main()
