@@ -220,3 +220,32 @@ class Block(Module):
         x = x + self.ffn(self.l2(x))
         return x
 
+
+class GPT(Module):
+    def __init__(self, model_args: ModelArgs, device: str):
+        super().__init__()
+        self.device = device
+        self.token_embedding = Embedding(model_args.vocab_size, model_args.d_model)
+        self.position_embedding = Embedding(model_args.seq_len, model_args.d_model)
+        self.layers = ModuleList(
+            [Block(model_args) for _ in range(model_args.num_layers)]
+        )
+        self.norm = RMSNorm(model_args.d_model)
+        self.proj = Linear(model_args.d_model, model_args.vocab_size)
+
+    def forward(self, x):
+        B, T = x.shape
+
+        tok_emb = self.token_embedding(x)
+        pos_emb = self.position_embedding(Tensor(np.arange(T)).to(self.device))
+        x = tok_emb + pos_emb
+
+        for layer in self.layers:
+            x = layer(x)
+
+        x = self.norm(x)
+        logits = self.proj(x)
+
+        return logits
+
+
