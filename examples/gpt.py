@@ -1,6 +1,6 @@
 # import punytorch as torch
 from punytorch.tensor import Tensor
-from punytorch.nn.modules import Module, Linear, Embedding, Parameter
+from punytorch.nn.modules import Module, Linear, Embedding, Parameter, ModuleList
 from punytorch.activations import Softmax, ReLU
 from punytorch.nn.optimizers import Adam
 
@@ -10,17 +10,33 @@ import punytorch.nn.optimizers as optim
 
 from dataclasses import dataclass
 import numpy as np
+import math
 from tqdm import tqdm
 
 
 @dataclass
+class Hyperparameters:
+    batch_size: int
+    block_size: int
+    max_iters: int
+    eval_interval: int
+    learning_rate: float
+    device: str = "cpu"
+    eval_iters: int
+    num_embeds: int
+    num_heads: int
+    num_layers: int
+    dropout: float
+
+
+@dataclass
 class ModelArgs:
-    seq_len: int = 10
-    d_model: int = 16
-    n_heads: int = 2
-    vocab_size: int = 10
-    num_layers: int = 2
-    esp: float = 1e-5
+    seq_len: int
+    d_model: int
+    n_heads: int
+    vocab_size: int
+    num_layers: int
+    esp: float
 
 
 class MHA(Module):
