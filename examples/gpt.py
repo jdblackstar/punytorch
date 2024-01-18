@@ -184,3 +184,39 @@ class RMSNorm(Module):
         output = self._norm(x)
         return output * self.weight
 
+
+class Block(Module):
+    """
+    A Block represents a single block in the transformer model, consisting of a
+    Multi-Head Attention (MHA) layer and a Feed-Forward Network (FFN).
+    Each of these components has a residual connection around it, followed by a
+    layer normalization.
+    """
+
+    def __init__(self, model_args: ModelArgs) -> None:
+        """
+        Initializes the Block module.
+
+        Args:
+            model_args (ModelArgs): The arguments for the model, including dimensions and sequence length.
+        """
+        super().__init__()
+        self.attn = MHA(model_args)
+        self.ffn = MLP(model_args.d_model, model_args.d_model)
+        self.l1 = RMSNorm(model_args.d_model, eps=model_args.esp)
+        self.l2 = RMSNorm(model_args.d_model, eps=model_args.esp)
+
+    def forward(self, x):
+        """
+        Defines the computation performed at every call.
+
+        Args:
+            x (Tensor): The input data.
+
+        Returns:
+            Tensor: The output of the Block.
+        """
+        x = x + self.attn(self.l1(x))
+        x = x + self.ffn(self.l2(x))
+        return x
+
