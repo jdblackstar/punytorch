@@ -22,7 +22,7 @@ class Hyperparameters:
     max_iters: int
     eval_interval: int
     learning_rate: float
-    device: str = "cpu"
+    device: str
     eval_iters: int
     num_embeds: int
     num_heads: int
