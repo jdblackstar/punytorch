@@ -1,4 +1,3 @@
-import pytest
 from punytorch.tensor import Tensor
 from examples.gpt import MHA, MLP, ModelArgs
 import numpy as np
