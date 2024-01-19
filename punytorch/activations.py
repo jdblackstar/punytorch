@@ -80,19 +80,24 @@ class Softmax:
     """
 
     @staticmethod
-    def forward(x):
+    def forward(x, dim=None):
         """
         Performs the forward pass of the Softmax activation function.
 
         Args:
             x (numpy.ndarray): The input data.
+            dim (int, optional): The dimension along which to apply the softmax function. If None, apply softmax along the last dimension.
 
         Returns:
             numpy.ndarray: The output after applying the Softmax function, which is exp(x) / sum(exp(x)).
-                           The max(x) is subtracted for numerical stability.
+                        The max(x) is subtracted for numerical stability.
         """
-        e_x = np.exp(x - np.max(x))  # subtract max(x) for numerical stability
-        return e_x / np.sum(e_x, axis=0)
+        if dim is None:
+            dim = -1
+        e_x = np.exp(
+            x - np.max(x, axis=dim, keepdims=True)
+        )  # subtract max(x) for numerical stability
+        return e_x / np.sum(e_x, axis=dim, keepdims=True)
 
     @staticmethod
     def backward(context, grad):
