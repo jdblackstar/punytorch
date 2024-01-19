@@ -65,6 +65,15 @@ class Tensor:
         """
         return Tensor(self.data.copy(), requires_grad=self.requires_grad)
 
+    def detach(self):
+        """
+        Creates a new Tensor that shares the same data but requires no gradient computation.
+
+        Returns:
+            Tensor: A new Tensor with the same data but requires_grad=False.
+        """
+        return Tensor(self.data, requires_grad=False)
+
     def backward(self, grad=None):
         if grad is None:
             grad = Tensor(np.ones_like(self.data))
