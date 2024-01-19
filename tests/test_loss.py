@@ -11,8 +11,10 @@ from punytorch.tensor import Tensor
 def test_MSELoss():
     y_true = Tensor(np.array([1.0, 2.0, 3.0]))
     y_pred = Tensor(np.array([1.0, 2.0, 3.0]))
-    assert MSELoss.forward(y_pred.data, y_true.data) == 0.0
-    assert np.all(MSELoss.backward(y_pred.data, y_true.data) == 0.0)
+    assert np.isclose(MSELoss.forward(y_pred.data, y_true.data).data, Tensor(0.0).data)
+    assert np.allclose(
+        MSELoss.backward(y_pred.data, y_true.data).data, Tensor([0.0, 0.0, 0.0]).data
+    )
 
 
 def test_BinaryCrossEntropyLoss():
