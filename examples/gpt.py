@@ -264,9 +264,11 @@ class GPT(Module):
         """
         B, T = x.shape
 
-        tok_emb = self.token_embedding(x)
-        pos_emb = self.position_embedding(Tensor(np.arange(T)).to(self.device))
-        x = tok_emb + pos_emb
+        token_embedding = self.token_embedding(x)
+        position_embedding = self.position_embedding(
+            Tensor(np.arange(T)).to(self.device)
+        )
+        x = token_embedding + position_embedding
 
         for layer in self.layers:
             x = layer(x)
