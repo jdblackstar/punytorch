@@ -303,9 +303,9 @@ def estimate_loss(model, eval_iters):
             data, targets = get_batch(split)
             logits = model(data)
 
-            B, T, C = logits.shape
-            logits = logits.view(B * T, C)
-            targets = targets.view(B * T)
+            batch_size, time_step, channels = logits.shape
+            logits = logits.view(batch_size * time_step, channels)
+            targets = targets.view(batch_size * time_step)
             loss = CrossEntropyLoss.forward(logits, targets)
             losses.append(loss.item())
         out[split] = sum(losses) / len(losses)
