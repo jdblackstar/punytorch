@@ -92,7 +92,7 @@ class MHA(Module):
         return x
 
     @staticmethod
-    def attention(k, q, v, mask) -> Tensor:
+    def attention(key, query, value, mask) -> Tensor:
         """
         Computes the attention scores.
 
@@ -105,11 +105,11 @@ class MHA(Module):
         Returns:
             Tensor: The output of the attention mechanism.
         """
-        B, n_head, T, C = k.shape
-        wei = (q @ k.transpose(-1, -2)) * (C**-0.5)
-        wei = mask[:, :, :T, :T] + wei
-        wei = Softmax(wei, dim=-1)
-        x = wei @ v
+        batch_size, n_head, time_step, channels = key.shape
+        attention_scores = (query @ key.transpose(-1, -2)) * (channels**-0.5)
+        attention_scores = mask[:, :, :time_step, :time_step] + attention_scores
+        attention_scores = Softmax().forward(attention_scores, dim=-1)
+        x = attention_scores @ value
         return x
 
 
