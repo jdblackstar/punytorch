@@ -78,17 +78,23 @@ class MHA(Module):
         Returns:
             Tensor: The output of the Multi-Head Attention layer.
         """
-        B, T, C = x.shape
-        k = self.key(x)
-        q = self.query(x)
-        v = self.value(x)
-        k = k.reshape(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)
-        q = q.reshape(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)
-        v = v.reshape(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)
+        batch_size, time_step, channels = x.shape
+        key = self.key(x)
+        query = self.query(x)
+        value = self.value(x)
+        key = key.reshape(
+            batch_size, time_step, self.n_heads, channels // self.n_heads
+        ).transpose(1, 2)
+        query = query.reshape(
+            batch_size, time_step, self.n_heads, channels // self.n_heads
+        ).transpose(1, 2)
+        value = value.reshape(
+            batch_size, time_step, self.n_heads, channels // self.n_heads
+        ).transpose(1, 2)
 
-        attn = self.attention(k, q, v, self.mask)
-        v = attn.transpose(1, 2).reshape(B, T, C)
-        x = self.proj(v)
+        attn = self.attention(key, query, value, self.mask)
+        value = attn.transpose(1, 2).reshape(batch_size, time_step, channels)
+        x = self.proj(value)
         return x
 
     @staticmethod
