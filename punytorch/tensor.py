@@ -35,6 +35,22 @@ class Tensor:
     def T(self):
         return Tensor(np.transpose(self.data))
 
+    def transpose(self, dim0, dim1):
+        """
+        Returns a tensor with dimensions dim0 and dim1 swapped.
+
+        Args:
+            dim0 (int): The first dimension to be swapped.
+            dim1 (int): The second dimension to be swapped.
+
+        Returns:
+            Tensor: A tensor with dimensions dim0 and dim1 swapped.
+        """
+        axes = list(range(self.data.ndim))
+        axes[dim0], axes[dim1] = axes[dim1], axes[dim0]
+        data = self.data.transpose(axes)
+        return Tensor(data, requires_grad=self.requires_grad)
+
     def tolist(self):
         return self.data.tolist()
 
