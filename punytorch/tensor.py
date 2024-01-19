@@ -56,6 +56,15 @@ class Tensor:
             return data.data.copy()
         raise ValueError(f"Invalid value passed to tensor. Type: {type(data)}")
 
+    def clone(self):
+        """
+        Creates a copy of the tensor that doesn't share memory with the original tensor.
+
+        Returns:
+            Tensor: A copy of the tensor.
+        """
+        return Tensor(self.data.copy(), requires_grad=self.requires_grad)
+
     def backward(self, grad=None):
         if grad is None:
             grad = Tensor(np.ones_like(self.data))
