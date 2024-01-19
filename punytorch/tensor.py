@@ -133,7 +133,7 @@ class Tensor:
         curr = self.prod(self.shape)
         target = self.prod((s for s in shape if s != -1))
         shape = tuple(curr // target if s == -1 else s for s in shape)
-        return Reshape.apply(self, shape).data
+        return Tensor(self.data.reshape(shape), requires_grad=self.requires_grad)
 
     """
     BINARY OPS
