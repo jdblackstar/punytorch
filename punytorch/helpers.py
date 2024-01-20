@@ -38,3 +38,24 @@ def is_one_hot(labels):
             return False
 
     return True
+
+
+class CharTokenizer:
+    def __init__(self, text=None, filepath=None):
+        self.text = text
+        if filepath:
+            with open(filepath, "r", encoding="utf-8") as f:
+                self.text = f.read()
+        elif text is None:
+            raise ValueError("Either text or filepath must be provided.")
+
+        self.chars = sorted(list(set(self.text)))
+        self.vocab_size = len(self.chars)
+        self.char_to_int = {c: i for i, c in enumerate(self.chars)}
+        self.int_to_char = {i: c for i, c in enumerate(self.chars)}
+
+    def encode(self, text):
+        return [self.char_to_int[c] for c in text]
+
+    def decode(self, encoded_chars):
+        return "".join([self.int_to_char[i] for i in encoded_chars])
