@@ -1,13 +1,14 @@
-from punytorch.activations import Softmax, ReLU
-from punytorch.helpers import CharTokenizer
-from punytorch.losses import CrossEntropyLoss
-from punytorch.nn.modules import Module, Linear, Embedding, Parameter, ModuleList
-from punytorch.nn.optimizers import Adam
-from punytorch.tensor import Tensor
-
 from dataclasses import dataclass
 import numpy as np
+
 from tqdm import tqdm
+
+from punytorch.activations import ReLU, Softmax
+from punytorch.helpers import CharTokenizer
+from punytorch.losses import CrossEntropyLoss
+from punytorch.nn.modules import Embedding, Linear, Module, ModuleList, Parameter
+from punytorch.nn.optimizers import Adam
+from punytorch.tensor import Tensor
 
 
 @dataclass
