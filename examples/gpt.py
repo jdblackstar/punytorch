@@ -144,9 +144,9 @@ class MLP(Module):
             Tensor: The output of the MLP.
         """
         x = self.w1(x)
-        x = ReLU(x)
+        x = ReLU().forward(x)
         x = self.w2(x)
-        x = ReLU(x)
+        x = ReLU().forward(x)
         x = self.w3(x)
         return x
 
