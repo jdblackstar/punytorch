@@ -53,7 +53,7 @@ class ModelArgs:
 
 # 3. Helper Functions
 @Tensor.no_grad()
-def estimate_loss(model, eval_iters):
+def estimate_loss(model, train_data, val_data, hyperparameters):
     """
     Estimates the loss of the model over a number of iterations.
 
@@ -62,7 +62,9 @@ def estimate_loss(model, eval_iters):
 
     Args:
         model (Module): The model to evaluate.
-        eval_iters (int): The number of iterations to run for the evaluation.
+        train_data: The training dataset.
+        val_data: The validation dataset.
+        hyperparameters: The hyperparameters of the model.
 
     Returns:
         dict: A dictionary with the average loss for the training and validation sets.
@@ -72,8 +74,8 @@ def estimate_loss(model, eval_iters):
 
     for split in ["train", "val"]:
         losses = []
-        for k in range(eval_iters):
-            data, targets = get_batch(split)
+        for k in range(hyperparameters.eval_iters):
+            data, targets = get_batch(split, train_data, val_data, hyperparameters)
             logits = model(data)
 
             batch_size, time_step, channels = logits.shape
