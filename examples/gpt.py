@@ -115,6 +115,36 @@ def get_batch(split, train_data, val_data, hyperparameters):
     return x, y
 
 
+@Tensor.no_grad()
+def generate(model, idx, max_new_tokens, hyperparameters):
+    """
+    Generates new tokens using the trained model.
+
+    This function takes a starting index tensor (usually zeros) and generates a sequence of tokens
+    by sampling from the probability distribution output by the model. It continues generating tokens
+    until it reaches the specified number of max_new_tokens.
+
+    Args:
+        model (Module): The trained GPT model used for generation.
+        idx (Tensor): The initial index tensor, typically zeros, used as a starting point for generation.
+        max_new_tokens (int): The maximum number of new tokens to generate.
+        hyperparameters: The hyperparameters of the model, containing settings like block_size and device.
+
+    Returns:
+        Tensor: A tensor containing the indices of the generated tokens.
+    """
+    idx = Tensor.zeros((1, hyperparameters.block_size)).to(hyperparameters.device).long()
+    for i in range(max_new_tokens):
+        idx_cond = idx[:, -hyperparameters.block_size :]
+        logits = model(idx_cond)
+        logits = logits[:, -1, :]
+        probs = Softmax().forward(logits, dim=-1)
+        idx_next = Tensor.multinomial(probs, num_samples=1)
+        idx = Tensor.cat((idx, idx_next), dim=1)
+    model.train()
+    return idx[:, hyperparameters.block_size :]
+
+
 # 4. Model Components (MHA, MLP, RMSNorm, Block, GPT)
 class MHA(Module):
     def __init__(self, model_args: ModelArgs) -> None:
