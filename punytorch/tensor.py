@@ -81,6 +81,12 @@ class Tensor:
         """
         return Tensor(self.data.copy(), requires_grad=self.requires_grad)
 
+    @staticmethod
+    def stack(tensors, axis=0):
+        arrays = [t.data for t in tensors]
+        stacked_array = np.stack(arrays, axis)
+        return Tensor(stacked_array)
+
     def detach(self):
         """
         Creates a new Tensor that shares the same data but requires no gradient computation.
