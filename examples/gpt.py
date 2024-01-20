@@ -1,17 +1,12 @@
-# import punytorch as torch
-from punytorch.tensor import Tensor
-from punytorch.nn.modules import Module, Linear, Embedding, Parameter, ModuleList
 from punytorch.activations import Softmax, ReLU
+from punytorch.helpers import CharTokenizer
 from punytorch.losses import CrossEntropyLoss
+from punytorch.nn.modules import Module, Linear, Embedding, Parameter, ModuleList
 from punytorch.nn.optimizers import Adam
-
-# I think pytorch.nn.function is the same as our optimizers file
-# import punytorch.nn.functional as F  # TODO: IMPLEMENT this
-import punytorch.nn.optimizers as optim
+from punytorch.tensor import Tensor
 
 from dataclasses import dataclass
 import numpy as np
-import math
 from tqdm import tqdm
 
 
@@ -345,7 +340,7 @@ def main():
     # fmt: on
 
     model = GPT(model_args, hyperparameters.device).to(hyperparameters.device)
-    optimizer = optim.Adam(model.parameters(), lr=hyperparameters.learning_rate)
+    optimizer = Adam(model.parameters(), lr=hyperparameters.learning_rate)
 
     # TODO:
     # 1. loop through hypermarameters.max_iters
