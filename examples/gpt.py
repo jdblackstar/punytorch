@@ -93,9 +93,8 @@ class MHA(Module):
         ).transpose(1, 2)
 
         attn = self.attention(key, query, value, self.mask)
-        value = attn.transpose(1, 2).reshape(batch_size, time_step, channels)
-        x = self.proj(value)
-        return x
+        attn = attn.reshape(batch_size, -1).reshape(batch_size, time_step, channels)
+        return self.proj(attn)
 
     @staticmethod
     def attention(key, query, value, mask) -> Tensor:
