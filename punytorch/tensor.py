@@ -265,3 +265,20 @@ class Tensor:
     def float(self):
         self.data = self.data.astype(np.float32)
         return self
+
+    """
+    CUSTOM METHODS FOR GENERATE FUNCTION
+    """
+
+    @staticmethod
+    def zeros(shape):
+        return Tensor(np.zeros(shape))
+
+    @staticmethod
+    def multinomial(input, num_samples):
+        return Tensor(np.random.choice(range(input.shape[1]), size=num_samples, p=input.data[0]))
+
+    @staticmethod
+    def cat(tensors, dim=0):
+        arrays = [t.data for t in tensors]
+        return Tensor(np.concatenate(arrays, axis=dim))
