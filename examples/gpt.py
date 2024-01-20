@@ -404,6 +404,12 @@ def main():
 
     model = GPT(model_args, hyperparameters.device).to(hyperparameters.device)
     optimizer = Adam(model.parameters(), lr=hyperparameters.learning_rate)
+    tokenizer = CharTokenizer(filepath="datasets/input.txt")
+
+    data = Tensor(tokenizer.encode(tokenizer.text)).long()
+    n = int(0.95 * len(data))
+    train_data = data[:n]
+    val_data = data[n:]
 
     # TODO:
     # 1. loop through hypermarameters.max_iters
@@ -426,6 +432,29 @@ def main():
     # - generate some new tokens
     # - decode these tokens into text
     # - print the text
+    for iter in range(1, hyperparameters.max_iters):
+        if iter % hyperparameters.eval_interval == 0 or iter == hyperparameters.max_iters - 1:
+            print("=" * 50)
+            losses = estimate_loss(model, train_data, val_data, hyperparameters.eval_iters)
+            print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+            context = Tensor(np.zeros((1, 1))).to(hyperparameters.device)
+            print(tokenizer.decode(generate(model, context, max_new_tokens=500)[0].tolist()))
+            optimizer.zero_grad()
+            print("-" * 50)
+        data, targets = get_batch("train", train_data, val_data, hyperparameters)
+        logits = model(data)
+        # print(sum(model.token_embedding.weight.reshape(-1).tolist()))
+        batch_size, time_step, channels = logits.shape
+        logits = logits.view(batch_size * time_step, channels)
+        targets = targets.view(batch_size * time_step)
+        loss = CrossEntropyLoss.forward(logits, targets)
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+        if iter % 50 == 0:
+            print(f"{iter=} {loss.item()=}")
+    context = Tensor.zeros((1, 1)).to(hyperparameters.device).long()
+    print(tokenizer.decode(generate(model, context, max_new_tokens=500)[0].tolist()))
 
 
 if __name__ == "__main__":
