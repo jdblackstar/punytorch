@@ -1,3 +1,17 @@
+"""
+gpt.py
+
+This example implements a GPT model for text generation using only punytorch.
+
+Table of Contents:
+1. Imports
+2. Dataclasses for Model and Hyperparameters
+3. Helper Functions
+4. Model Components (MHA, MLP, RMSNorm, Block, GPT)
+5. Main Function
+"""
+
+# 1. Imports
 from dataclasses import dataclass
 import numpy as np
 
@@ -11,6 +25,7 @@ from punytorch.nn.optimizers import Adam
 from punytorch.tensor import Tensor
 
 
+# 2. Dataclasses for Model and Hyperparameters
 @dataclass
 class Hyperparameters:
     batch_size: int
@@ -36,6 +51,52 @@ class ModelArgs:
     esp: float
 
 
+# 3. Helper Functions
+@Tensor.no_grad()
+def estimate_loss(model, eval_iters):
+    """
+    Estimates the loss of the model over a number of iterations.
+
+    This function runs the model in evaluation mode and computes the average loss over a specified number of iterations.
+    The loss is computed separately for the training and validation sets.
+
+    Args:
+        model (Module): The model to evaluate.
+        eval_iters (int): The number of iterations to run for the evaluation.
+
+    Returns:
+        dict: A dictionary with the average loss for the training and validation sets.
+    """
+    out = {}
+    model.eval()
+
+    for split in ["train", "val"]:
+        losses = []
+        for k in range(eval_iters):
+            data, targets = get_batch(split)
+            logits = model(data)
+
+            batch_size, time_step, channels = logits.shape
+            logits = logits.view(batch_size * time_step, channels)
+            targets = targets.view(batch_size * time_step)
+            loss = CrossEntropyLoss.forward(logits, targets)
+            losses.append(loss.item())
+        out[split] = sum(losses) / len(losses)
+    model.train()
+    return out
+
+
+def get_batch(split, train_data, val_data, block_size, batch_size, device):
+    data = train_data if split == "train" else val_data
+    len_data = len(data)
+    ix = np.random.randint(0, len_data - block_size, batch_size)
+    x = Tensor.stack([data[i : i + block_size] for i in ix])
+    y = Tensor.stack([data[i + 1 : i + block_size + 1] for i in ix])
+    x, y = x.to(device), y.to(device)
+    return x, y
+
+
+# 4. Model Components (MHA, MLP, RMSNorm, Block, GPT)
 class MHA(Module):
     def __init__(self, model_args: ModelArgs) -> None:
         """
@@ -264,45 +325,7 @@ class GPT(Module):
         return logits
 
 
-@Tensor.no_grad()
-def estimate_loss(model, eval_iters):
-    """
-    Estimates the loss of the model over a number of iterations.
-
-    This function runs the model in evaluation mode and computes the average loss over a specified number of iterations.
-    The loss is computed separately for the training and validation sets.
-
-    Args:
-        model (Module): The model to evaluate.
-        eval_iters (int): The number of iterations to run for the evaluation.
-
-    Returns:
-        dict: A dictionary with the average loss for the training and validation sets.
-    """
-    out = {}
-    model.eval()
-
-    for split in ["train", "val"]:
-        losses = []
-        for k in range(eval_iters):
-            data, targets = get_batch(split)
-            logits = model(data)
-
-            batch_size, time_step, channels = logits.shape
-            logits = logits.view(batch_size * time_step, channels)
-            targets = targets.view(batch_size * time_step)
-            loss = CrossEntropyLoss.forward(logits, targets)
-            losses.append(loss.item())
-        out[split] = sum(losses) / len(losses)
-    model.train()
-    return out
-
-
-@Tensor.no_grad()
-def get_batch():
-    raise NotImplementedError
-
-
+# 5. Main Function
 def main():
     # hyperparameters and modelargs
     hyperparameters = Hyperparameters(
