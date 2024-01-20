@@ -86,13 +86,30 @@ def estimate_loss(model, eval_iters):
     return out
 
 
-def get_batch(split, train_data, val_data, block_size, batch_size, device):
+def get_batch(split, train_data, val_data, hyperparameters):
+    """
+    Generates a batch of data for training or validation.
+
+    Args:
+        split (str): Specifies whether the batch is for training or validation.
+                     Should be either "train" or "val".
+        train_data (np.ndarray): The training dataset.
+        val_data (np.ndarray): The validation dataset.
+        block_size (int): The size of each block of data.
+        batch_size (int): The number of data blocks in each batch.
+        device (str): The device to which the data should be sent.
+                      Should be either "cpu" or "gpu".
+
+    Returns:
+        tuple: A tuple containing two Tensors. The first tensor contains the input data
+               and the second tensor contains the target data.
+    """
     data = train_data if split == "train" else val_data
     len_data = len(data)
-    ix = np.random.randint(0, len_data - block_size, batch_size)
-    x = Tensor.stack([data[i : i + block_size] for i in ix])
-    y = Tensor.stack([data[i + 1 : i + block_size + 1] for i in ix])
-    x, y = x.to(device), y.to(device)
+    ix = np.random.randint(0, len_data - hyperparameters.block_size, hyperparameters.batch_size)
+    x = Tensor.stack([data[i : i + hyperparameters.block_size] for i in ix])
+    y = Tensor.stack([data[i + 1 : i + hyperparameters.block_size + 1] for i in ix])
+    x, y = x.to(hyperparameters.device), y.to(hyperparameters.device)
     return x, y
 
 
