@@ -3,9 +3,7 @@ from examples.gpt import MHA, MLP, ModelArgs
 import numpy as np
 
 # Initialize our models
-model_args = ModelArgs(
-    seq_len=10, d_model=16, n_heads=2, vocab_size=10, num_layers=2, esp=0.1
-)
+model_args = ModelArgs(seq_len=10, d_model=16, n_heads=2, vocab_size=10, num_layers=2, esp=0.1)
 multi_head_attention = MHA(model_args)
 multi_layer_perceptron = MLP(in_features=16, out_features=16, expansion_size=3)
 

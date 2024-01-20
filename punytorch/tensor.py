@@ -16,9 +16,7 @@ class Tensor:
         self.requires_grad = requires_grad
         # if requires_grad is True, then we need to initialize the gradient to zeros
         # and make sure that they're floats, since backprop uses floats
-        self.grad = (
-            np.zeros_like(self.data, dtype=np.float64) if requires_grad else None
-        )
+        self.grad = np.zeros_like(self.data, dtype=np.float64) if requires_grad else None
         self.context = None
 
     @property
@@ -55,9 +53,7 @@ class Tensor:
         return self.data.tolist()
 
     def item(self):
-        assert (
-            np.prod(self.data.shape) == 1
-        ), "Only one element tensors can be converted to Python scalars"
+        assert np.prod(self.data.shape) == 1, "Only one element tensors can be converted to Python scalars"
         return self.data.item()
 
     @staticmethod

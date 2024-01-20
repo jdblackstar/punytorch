@@ -68,17 +68,13 @@ class Module:
                     d[key] = v.clone()
                 elif isinstance(v, ModuleList):
                     ds = [
-                        _get_params(
-                            m, f"{prefix}.{k}.{idx}" if prefix != "" else f"{k}.{idx}"
-                        )
+                        _get_params(m, f"{prefix}.{k}.{idx}" if prefix != "" else f"{k}.{idx}")
                         for idx, m in enumerate(v)
                     ]
                     for x in ds:
                         absorb_dict(d, x)
                 elif isinstance(v, Module):
-                    absorb_dict(
-                        d, _get_params(v, f"{prefix}.{k}" if prefix != "" else f"{k}")
-                    )
+                    absorb_dict(d, _get_params(v, f"{prefix}.{k}" if prefix != "" else f"{k}"))
             return d
 
         return _get_params(self)
@@ -173,10 +169,7 @@ class Linear(Module):
         self.in_features = in_features
         self.out_features = out_features
 
-        self.weight = Parameter(
-            np.random.rand(out_features, in_features)
-            / np.sqrt(in_features + out_features)
-        )
+        self.weight = Parameter(np.random.rand(out_features, in_features) / np.sqrt(in_features + out_features))
         self.bias = Parameter(np.zeros(out_features)) if bias else None
 
     def forward(self, x: Tensor) -> Tensor:

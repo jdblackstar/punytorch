@@ -78,15 +78,9 @@ class MHA(Module):
         key = self.key(x)
         query = self.query(x)
         value = self.value(x)
-        key = key.reshape(
-            batch_size, time_step, self.n_heads, channels // self.n_heads
-        ).transpose(1, 2)
-        query = query.reshape(
-            batch_size, time_step, self.n_heads, channels // self.n_heads
-        ).transpose(1, 2)
-        value = value.reshape(
-            batch_size, time_step, self.n_heads, channels // self.n_heads
-        ).transpose(1, 2)
+        key = key.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
+        query = query.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
+        value = value.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
 
         attn = self.attention(key, query, value, self.mask)
         attn = attn.reshape(batch_size, -1).reshape(batch_size, time_step, channels)
@@ -241,9 +235,7 @@ class GPT(Module):
         self.device = device
         self.token_embedding = Embedding(model_args.vocab_size, model_args.d_model)
         self.position_embedding = Embedding(model_args.seq_len, model_args.d_model)
-        self.layers = ModuleList(
-            [Block(model_args) for _ in range(model_args.num_layers)]
-        )
+        self.layers = ModuleList([Block(model_args) for _ in range(model_args.num_layers)])
         self.norm = RMSNorm(model_args.d_model)
         self.proj = Linear(model_args.d_model, model_args.vocab_size)
 
@@ -260,9 +252,7 @@ class GPT(Module):
         B, T = x.shape
 
         token_embedding = self.token_embedding(x)
-        position_embedding = self.position_embedding(
-            Tensor(np.arange(T)).to(self.device)
-        )
+        position_embedding = self.position_embedding(Tensor(np.arange(T)).to(self.device))
         x = token_embedding + position_embedding
 
         for layer in self.layers:
