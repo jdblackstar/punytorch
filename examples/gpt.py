@@ -443,7 +443,6 @@ def main():
             print("-" * 50)
         data, targets = get_batch("train", train_data, val_data, hyperparameters)
         logits = model(data)
-        # print(sum(model.token_embedding.weight.reshape(-1).tolist()))
         batch_size, time_step, channels = logits.shape
         logits = logits.view(batch_size * time_step, channels)
         targets = targets.view(batch_size * time_step)
