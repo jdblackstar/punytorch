@@ -17,6 +17,7 @@ class Tensor:
         # if requires_grad is True, then we need to initialize the gradient to zeros
         # and make sure that they're floats, since backprop uses floats
         self.grad = np.zeros_like(self.data, dtype=np.float64) if requires_grad else None
+        self.dtype = self.data.dtype
         self.context = None
 
     @property
@@ -282,3 +283,26 @@ class Tensor:
     def cat(tensors, dim=0):
         arrays = [t.data for t in tensors]
         return Tensor(np.concatenate(arrays, axis=dim))
+
+    def long(self):
+        """
+        Converts the tensor to a 64-bit integer tensor.
+        """
+        if self.dtype is not np.int64:
+            return Tensor(self.data.astype(np.int64), requires_grad=self.requires_grad)
+        return self
+
+    def to(self, device):
+        """
+        Moves the tensor to the specified device. Currently, only 'cpu' is supported.
+
+        Args:
+            device (str): The device to move the tensor to ('cpu' supported).
+
+        Returns:
+            Tensor: A new tensor moved to the specified device.
+        """
+        if device == "cpu":
+            return self  # Since NumPy arrays are already on the CPU, just return self.
+        else:
+            raise NotImplementedError("Only 'cpu' device is supported for the Tensor class.")
