@@ -10,3 +10,13 @@ class Reshape(Function):
     def backward(ctx: Function, grad):
         x, _ = ctx.args
         return grad.__class__(grad.data.reshape(x.shape)), None
+
+
+class Transpose(Function):
+    @staticmethod
+    def forward(x):
+        return x.__class__(x.data.T)
+
+    @staticmethod
+    def backward(ctx: Function, grad):
+        return grad.__class__(grad.data.T), None
