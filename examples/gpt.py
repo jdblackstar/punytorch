@@ -70,6 +70,10 @@ def estimate_loss(model, train_data, val_data, hyperparameters):
         dict: A dictionary with the average loss for the training and validation sets.
     """
     out = {}
+
+    # put the model in evaluation mode
+    # - prevents neuron dropout
+    # - batchnorm layers use running statistics instead of batch statistics
     model.eval()
 
     for split in ["train", "val"]:
@@ -84,6 +88,9 @@ def estimate_loss(model, train_data, val_data, hyperparameters):
             loss = CrossEntropyLoss.forward(logits, targets)
             losses.append(loss.item())
         out[split] = sum(losses) / len(losses)
+
+    # return the model to training mode
+    # it's generally good practice to make sure that a function cleans up after itself
     model.train()
     return out
 
@@ -106,11 +113,21 @@ def get_batch(split, train_data, val_data, hyperparameters):
         tuple: A tuple containing two Tensors. The first tensor contains the input data
                and the second tensor contains the target data.
     """
+    # choose the correct dataset based on the 'split' parameter
     data = train_data if split == "train" else val_data
     len_data = len(data)
-    ix = np.random.randint(0, len_data - hyperparameters.block_size, hyperparameters.batch_size)
-    x = Tensor.stack([data[i : i + hyperparameters.block_size] for i in ix])
-    y = Tensor.stack([data[i + 1 : i + hyperparameters.block_size + 1] for i in ix])
+
+    # randomly select starting indices for the sequences
+    idx = np.random.randint(
+        0, len_data - hyperparameters.block_size, hyperparameters.batch_size
+    )
+
+    # create input (x) and target (y) sequences based on block_size
+    # target (y) sequence is offset by one (common practice in language modeling)
+    x = Tensor.stack([data[i : i + hyperparameters.block_size] for i in idx])
+    y = Tensor.stack([data[i + 1 : i + hyperparameters.block_size + 1] for i in idx])
+
+    # move the tensor to the specified device
     x, y = x.to(hyperparameters.device), y.to(hyperparameters.device)
     return x, y
 
@@ -137,10 +154,16 @@ def generate(model, idx, max_new_tokens, hyperparameters):
     for i in range(max_new_tokens):
         idx_cond = idx[:, -hyperparameters.block_size :]
         logits = model(idx_cond)
-        logits = logits[:, -1, :]
+        logits = logits[:, -1, :]  # only take the last token, since we're predicting the "next" token
+
+        # logits are converted to a probability distribution using the softmax function
         probs = Softmax().forward(logits, dim=-1)
+
+        # the next index is sampled from the probability distribution, then added to the sequence
         idx_next = Tensor.multinomial(probs, num_samples=1)
         idx = Tensor.cat((idx, idx_next), dim=1)
+
+    # return the model to training mode
     model.train()
     return idx[:, hyperparameters.block_size :]
 
