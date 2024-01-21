@@ -118,9 +118,7 @@ def get_batch(split, train_data, val_data, hyperparameters):
     len_data = len(data)
 
     # randomly select starting indices for the sequences
-    idx = np.random.randint(
-        0, len_data - hyperparameters.block_size, hyperparameters.batch_size
-    )
+    idx = np.random.randint(0, len_data - hyperparameters.block_size, hyperparameters.batch_size)
 
     # create input (x) and target (y) sequences based on block_size
     # target (y) sequence is offset by one (common practice in language modeling)
