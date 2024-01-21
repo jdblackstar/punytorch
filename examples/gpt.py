@@ -70,6 +70,7 @@ def estimate_loss(model, train_data, val_data, hyperparameters):
         dict: A dictionary with the average loss for the training and validation sets.
     """
     out = {}
+
     # put the model in evaluation mode
     # - prevents neuron dropout
     # - batchnorm layers use running statistics instead of batch statistics
@@ -149,15 +150,11 @@ def generate(model, idx, max_new_tokens, hyperparameters):
     Returns:
         Tensor: A tensor containing the indices of the generated tokens.
     """
-    idx = (
-        Tensor.zeros((1, hyperparameters.block_size)).to(hyperparameters.device).long()
-    )
+    idx = Tensor.zeros((1, hyperparameters.block_size)).to(hyperparameters.device).long()
     for i in range(max_new_tokens):
         idx_cond = idx[:, -hyperparameters.block_size :]
         logits = model(idx_cond)
-        logits = logits[
-            :, -1, :
-        ]  # only take the last token, since we're predicting the "next" token
+        logits = logits[:, -1, :]  # only take the last token, since we're predicting the "next" token
 
         # logits are converted to a probability distribution using the softmax function
         probs = Softmax().forward(logits, dim=-1)
@@ -214,15 +211,9 @@ class MHA(Module):
         key = self.key(x)
         query = self.query(x)
         value = self.value(x)
-        key = key.reshape(
-            batch_size, time_step, self.n_heads, channels // self.n_heads
-        ).transpose(1, 2)
-        query = query.reshape(
-            batch_size, time_step, self.n_heads, channels // self.n_heads
-        ).transpose(1, 2)
-        value = value.reshape(
-            batch_size, time_step, self.n_heads, channels // self.n_heads
-        ).transpose(1, 2)
+        key = key.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
+        query = query.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
+        value = value.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
 
         attn = self.attention(key, query, value, self.mask)
         attn = attn.reshape(batch_size, -1).reshape(batch_size, time_step, channels)
@@ -377,9 +368,7 @@ class GPT(Module):
         self.device = device
         self.token_embedding = Embedding(model_args.vocab_size, model_args.d_model)
         self.position_embedding = Embedding(model_args.seq_len, model_args.d_model)
-        self.layers = ModuleList(
-            [Block(model_args) for _ in range(model_args.num_layers)]
-        )
+        self.layers = ModuleList([Block(model_args) for _ in range(model_args.num_layers)])
         self.norm = RMSNorm(model_args.d_model)
         self.proj = Linear(model_args.d_model, model_args.vocab_size)
 
@@ -396,9 +385,7 @@ class GPT(Module):
         B, T = x.shape
 
         token_embedding = self.token_embedding(x)
-        position_embedding = self.position_embedding(
-            Tensor(np.arange(T)).to(self.device)
-        )
+        position_embedding = self.position_embedding(Tensor(np.arange(T)).to(self.device))
         x = token_embedding + position_embedding
 
         for layer in self.layers:
@@ -469,23 +456,12 @@ def main():
     # - decode these tokens into text
     # - print the text
     for iter in range(1, hyperparameters.max_iters):
-        if (
-            iter % hyperparameters.eval_interval == 0
-            or iter == hyperparameters.max_iters - 1
-        ):
+        if iter % hyperparameters.eval_interval == 0 or iter == hyperparameters.max_iters - 1:
             print("=" * 50)
-            losses = estimate_loss(
-                model, train_data, val_data, hyperparameters.eval_iters
-            )
-            print(
-                f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
-            )
+            losses = estimate_loss(model, train_data, val_data, hyperparameters.eval_iters)
+            print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
             context = Tensor(np.zeros((1, 1))).to(hyperparameters.device)
-            print(
-                tokenizer.decode(
-                    generate(model, context, max_new_tokens=500)[0].tolist()
-                )
-            )
+            print(tokenizer.decode(generate(model, context, max_new_tokens=500)[0].tolist()))
             optimizer.zero_grad()
             print("-" * 50)
         data, targets = get_batch("train", train_data, val_data, hyperparameters)

@@ -6,6 +6,18 @@ class Function:
         self.op = op
         self.args = args
 
+    def apply(self, *args):
+        """
+        Applies the function to the gives arguments.
+
+        Args:
+            *args: The arguments to apply the function to.
+
+        Returns:
+            The result of applying the function.
+        """
+        return self.forward(*args)
+
 
 class Operation:
     def forward(self, *args):
