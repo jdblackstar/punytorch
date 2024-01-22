@@ -28,7 +28,20 @@ class Tensor:
         return self.data.shape[0]
 
     def __getitem__(self, index):
-        return self.data[index]
+        # Wrap the sliced array in a Tensor object
+        if isinstance(index, Tensor):
+            index = index.data
+        if isinstance(index, (int, np.integer, slice)):
+            # Handle integer, numpy integer, and slice indexing
+            return Tensor(self.data[index], requires_grad=self.requires_grad)
+        elif isinstance(index, (tuple, list)) or (isinstance(index, np.ndarray) and index.ndim == 1):
+            # Handle 1D fancy indexing for numpy arrays
+            return Tensor(self.data[index], requires_grad=self.requires_grad)
+        elif isinstance(index, np.ndarray) and index.ndim == 2:
+            # Handle 2D fancy indexing for numpy arrays
+            return Tensor(self.data[index[:, None], index], requires_grad=self.requires_grad)
+        else:
+            raise IndexError("Indexing with the provided index is not supported")
 
     @property
     def T(self):
