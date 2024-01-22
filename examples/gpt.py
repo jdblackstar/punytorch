@@ -284,7 +284,7 @@ class RMSNorm(Module):
         """
         super().__init__()
         self.eps = eps
-        self.weight = Parameter(Tensor(np.ones(dim)))
+        self.weight = Parameter(np.ones(dim))
 
     def _norm(self, x: Tensor):
         """
