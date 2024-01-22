@@ -121,8 +121,12 @@ class Mod(Operation):
 
     @staticmethod
     def backward(context, grad):
+        x, y = context.args
         # The gradient of x % y with respect to x is 1, and with respect to y is 0
-        return grad, np.zeros_like(context.args[1].data)
+        # Check if all elements in `y.data` are integers and raise a ValueError if they're not
+        if not np.all(y.data.astype(int) == y.data):
+            raise ValueError("The derivative with respect to `y` is undefined for non-integer values.")
+        return grad, np.zeros_like(y.data)
 
 
 class Pow(Operation):
