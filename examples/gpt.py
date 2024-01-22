@@ -213,10 +213,6 @@ class MHA(Module):
         query = query.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
         value = value.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
 
-        attn = self.attention(key, query, value, self.mask)
-        attn = attn.reshape(batch_size, -1).reshape(batch_size, time_step, channels)
-        return self.proj(attn)
-
     @staticmethod
     def attention(key, query, value, mask) -> Tensor:
         """
@@ -236,6 +232,8 @@ class MHA(Module):
         attention_scores = mask[:, :, :time_step, :time_step] + attention_scores
         attention_scores = Softmax().forward(attention_scores, dim=-1)
         x = attention_scores @ value
+        if not isinstance(x, Tensor):
+            raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
         return x
 
 
