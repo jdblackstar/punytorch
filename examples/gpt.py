@@ -205,6 +205,9 @@ class MHA(Module):
         Returns:
             Tensor: The output of the Multi-Head Attention layer.
         """
+        if not isinstance(x, Tensor):
+            raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
+
         batch_size, time_step, channels = x.shape
         key = self.key(x)
         query = self.query(x)
