@@ -72,7 +72,20 @@ class Mul(Operation):
         """
         z = x * y
         """
-        return x.data * y.data
+        # Late import to avoid circular dependency
+        from punytorch.tensor import Tensor
+
+        # If x or y is a Parameter, use its underlying Tensor data
+        x_data = x.data if isinstance(x, Tensor) else x
+        y_data = y.data if isinstance(y, Tensor) else y
+
+        assert isinstance(x_data, np.ndarray), f"x_data is not a NumPy array: {type(x_data)}"
+        assert isinstance(y_data, np.ndarray), f"y_data is not a NumPy array: {type(y_data)}"
+
+        print(f"Type of x_data: {type(x_data)}")
+        print(f"Type of y_data: {type(y_data)}")
+
+        return x_data * y_data
 
     @staticmethod
     def backward(context, grad):
