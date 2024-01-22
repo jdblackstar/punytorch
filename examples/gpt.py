@@ -295,8 +295,13 @@ class RMSNorm(Module):
         Returns:
             Tensor: The normalized tensor.
         """
-        rms = ((x**2).mean(axis=-1, keepdim=True) + self.eps) ** 0.5
-        return x / rms
+        if not isinstance(x, Tensor):
+            raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
+        rms = ((x**2).mean(axis=-1, keepdims=True) + self.eps) ** 0.5
+        normalized_x = x / rms
+        if not isinstance(normalized_x, Tensor):
+            raise TypeError(f"Expected normalized_x to be a Tensor, but got {type(normalized_x).__name__}")
+        return normalized_x
 
     def forward(self, x):
         """
@@ -309,6 +314,8 @@ class RMSNorm(Module):
             Tensor: The output of the RMSNorm.
         """
         output = self._norm(x)
+        assert isinstance(output, Tensor), f"output is not a Tensor: {type(output)}"
+        assert isinstance(self.weight, Tensor), f"self.weight is not a Tensor: {type(self.weight)}"
         return output * self.weight
 
 
