@@ -94,7 +94,7 @@ class Softmax:
         """
         if dim is None:
             dim = -1
-        e_x = np.exp(x - np.max(x, axis=dim, keepdims=True))  # subtract max(x) for numerical stability
+        e_x = np.exp(x.data - np.max(x.data, axis=dim, keepdims=True))  # subtract max(x.data) for numerical stability
         return e_x / np.sum(e_x, axis=dim, keepdims=True)
 
     @staticmethod
