@@ -315,8 +315,8 @@ class RMSNorm(Module):
             Tensor: The output of the RMSNorm.
         """
         output = self._norm(x)
-        assert isinstance(output, Tensor), f"output is not a Tensor: {type(output)}"
-        assert isinstance(self.weight, Tensor), f"self.weight is not a Tensor: {type(self.weight)}"
+        if not isinstance(self.weight, Tensor):
+            raise TypeError(f"Expected self.weight to be a Tensor, but got {type(self.weight)}")
         return output * self.weight
 
 
