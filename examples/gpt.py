@@ -433,6 +433,8 @@ def main():
     train_data = data[:n]
     val_data = data[n:]
 
+    assert all(isinstance(x, Tensor) for x in [data, train_data, val_data]), "All data must be Tensors"
+
     # TODO:
     # 1. loop through hypermarameters.max_iters
     #    at each iteration, check if we are at the eval_iterval
