@@ -319,3 +319,19 @@ class Tensor:
             return self  # Since NumPy arrays are already on the CPU, just return self.
         else:
             raise NotImplementedError("Only 'cpu' device is supported for the Tensor class.")
+
+    def mean(self, axis=None, keepdims=False):
+        """
+        Compute the mean along the specified axis.
+        """
+        mean_data = np.mean(self.data, axis=axis, keepdims=keepdims)
+        result = Tensor(mean_data)
+        if self.requires_grad:
+            # Assuming the Tensor class has a way to set the grad_fn after construction
+            size = self.data.size if axis is None else self.data.shape[axis]
+
+            def grad_fn(grad):
+                return grad * np.ones_like(self.data) / size
+
+            result.grad_fn = grad_fn
+        return result
