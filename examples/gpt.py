@@ -415,10 +415,10 @@ def main():
 
     # fmt: off
     model_args = ModelArgs(
-        seq_len=10,
+        seq_len=1000,
         d_model=16,
         n_heads=2,
-        vocab_size=10,
+        vocab_size=1000,
         num_layers=2,
         esp=1e-5,
     )
