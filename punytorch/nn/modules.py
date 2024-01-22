@@ -135,7 +135,7 @@ class Module:
         for p in self.parameters():
             p.requires_grad = True
 
-    def forward(self, *args, **kwargs):
+    def forward(self, *args, **kwargs) -> Tensor:
         """
         Defines the computation performed at every call.
 
