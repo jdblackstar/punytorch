@@ -216,6 +216,15 @@ class MHA(Module):
         query = query.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
         value = value.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
 
+        # Call the static attention method
+        x = MHA.attention(key, query, value, self.mask)
+
+        # Reshape or process the output from the attention method if necessary
+        # For example, if you need to concatenate heads or apply a final linear layer
+        # output = ...
+
+        return x
+
     @staticmethod
     def attention(key, query, value, mask) -> Tensor:
         """
@@ -231,7 +240,8 @@ class MHA(Module):
             Tensor: The output of the attention mechanism.
         """
         batch_size, n_head, time_step, channels = key.shape
-        attention_scores = (query @ key.transpose(-1, -2)) * (channels**-0.5)
+        scaling_factor = Tensor(channels**-0.5)
+        attention_scores = (query @ key.transpose(-1, -2)) * scaling_factor
         attention_scores = mask[:, :, :time_step, :time_step] + attention_scores
         attention_scores = Softmax().forward(attention_scores, dim=-1)
         x = attention_scores @ value
@@ -441,7 +451,11 @@ def main():
     train_data = data[:n]
     val_data = data[n:]
 
-    assert all(isinstance(x, Tensor) for x in [data, train_data, val_data]), "All data must be Tensors"
+    # type checks before moving on
+    if not all(isinstance(x, Tensor) for x in [data, train_data, val_data]):
+        raise TypeError("All data must be Tensors")
+    if not all(isinstance(p, Tensor) for p in model.parameters()):
+        raise TypeError("All model parameters must be instances of Tensor")
 
     # TODO:
     # 1. loop through hypermarameters.max_iters
@@ -464,26 +478,29 @@ def main():
     # - generate some new tokens
     # - decode these tokens into text
     # - print the text
-    for iter in range(1, hyperparameters.max_iters):
-        if iter % hyperparameters.eval_interval == 0 or iter == hyperparameters.max_iters - 1:
-            print("=" * 50)
-            losses = estimate_loss(model, train_data, val_data, hyperparameters.eval_iters)
-            print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
-            context = Tensor(np.zeros((1, 1))).to(hyperparameters.device)
-            print(tokenizer.decode(generate(model, context, max_new_tokens=500)[0].tolist()))
+    with tqdm(total=hyperparameters.max_iters, desc="Training Progress") as pbar:
+        for iter in range(1, hyperparameters.max_iters):
+            if iter % hyperparameters.eval_interval == 0 or iter == hyperparameters.max_iters - 1:
+                print("=" * 50)
+                losses = estimate_loss(model, train_data, val_data, hyperparameters.eval_iters)
+                print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+                context = Tensor(np.zeros((1, 1))).to(hyperparameters.device)
+                print(tokenizer.decode(generate(model, context, max_new_tokens=500)[0].tolist()))
+                optimizer.zero_grad()
+                print("-" * 50)
+            data, targets = get_batch("train", train_data, val_data, hyperparameters)
+            logits = model(data)
+            batch_size, time_step, channels = logits.shape
+            logits = logits.view(batch_size * time_step, channels)
+            targets = targets.view(batch_size * time_step)
+            loss = CrossEntropyLoss.forward(logits, targets)
+            loss.backward()
+            optimizer.step()
             optimizer.zero_grad()
-            print("-" * 50)
-        data, targets = get_batch("train", train_data, val_data, hyperparameters)
-        logits = model(data)
-        batch_size, time_step, channels = logits.shape
-        logits = logits.view(batch_size * time_step, channels)
-        targets = targets.view(batch_size * time_step)
-        loss = CrossEntropyLoss.forward(logits, targets)
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-        if iter % 50 == 0:
-            print(f"{iter=} {loss.item()=}")
+            if iter % 50 == 0:
+                print(f"{iter=} {loss.item()=}")
+
+            pbar.update(1)
     context = Tensor.zeros((1, 1)).to(hyperparameters.device).long()
     print(tokenizer.decode(generate(model, context, max_new_tokens=500)[0].tolist()))
 
