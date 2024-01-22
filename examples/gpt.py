@@ -370,7 +370,7 @@ class GPT(Module):
         self.norm = RMSNorm(model_args.d_model)
         self.proj = Linear(model_args.d_model, model_args.vocab_size)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         """
         Defines the computation performed at every call.
 
@@ -380,8 +380,9 @@ class GPT(Module):
         Returns:
             Tensor: The output of the GPT model.
         """
+        if not isinstance(x, Tensor):
+            raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
         B, T = x.shape
-
         token_embedding = self.token_embedding(x)
         position_embedding = self.position_embedding(Tensor(np.arange(T)).to(self.device))
         x = token_embedding + position_embedding
