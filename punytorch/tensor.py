@@ -124,9 +124,9 @@ class Tensor:
 
     @staticmethod
     def ensure_tensor(data):
-        if isinstance(data, Tensor):
-            return data
-        return Tensor(data)
+        if not isinstance(data, Tensor):
+            data = Tensor(np.array(data))
+        return data
 
     """
     ML OPS
