@@ -58,6 +58,11 @@ class Tensor:
         Returns:
             Tensor: A tensor with dimensions dim0 and dim1 swapped.
         """
+        if dim0 >= self.data.ndim or dim1 >= self.data.ndim:
+            raise ValueError(
+                f"Dimension out of range. Tensor has {self.data.ndim} dimensions but dim0={dim0} or dim1={dim1} was provided."
+            )
+
         axes = list(range(self.data.ndim))
         axes[dim0], axes[dim1] = axes[dim1], axes[dim0]
         data = self.data.transpose(axes)
