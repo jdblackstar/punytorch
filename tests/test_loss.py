@@ -1,9 +1,11 @@
 import numpy as np
+import pytest
 
 from punytorch.losses import (
+    MSELoss,
+    CrossEntropyLoss,
     BinaryCrossEntropyLoss,
     CategoricalCrossEntropyLoss,
-    MSELoss,
 )
 from punytorch.tensor import Tensor
 
@@ -13,6 +15,36 @@ def test_MSELoss():
     y_pred = Tensor([1.0, 2.0, 3.0])
     assert np.isclose(MSELoss.forward(y_pred.data, y_true.data).data, Tensor(0.0).data)
     assert np.allclose(MSELoss.backward(y_pred.data, y_true.data).data, Tensor([0.0, 0.0, 0.0]).data)
+
+
+@pytest.mark.gpt
+@pytest.mark.mnist
+def test_CrossEntropyLoss():
+    # create and test both 1-dimensional and 2-dimensional tensors
+    y_true_1d = Tensor([1.0, 0.0, 0.0])
+    y_pred_1d = Tensor([0.7, 0.2, 0.1])
+    y_true_2d = Tensor([[1.0, 0.0, 0.0]])
+    y_pred_2d = Tensor([[0.7, 0.2, 0.1]])
+
+    # test of 1-dimensional tensor
+    assert np.isclose(
+        CrossEntropyLoss.forward(y_pred_1d.data, y_true_1d.data).data,
+        0.2559831829678749,
+    )
+    assert np.allclose(
+        CrossEntropyLoss.backward(y_pred_1d.data, y_true_1d.data).data,
+        np.array([-0.17867886, 0.09380268, 0.08487618]),
+    )
+
+    # test of 2-dimensional tensor
+    assert np.isclose(
+        CrossEntropyLoss.forward(y_pred_2d.data, y_true_2d.data).data,
+        0.7679495489036248,
+    )
+    assert np.allclose(
+        CrossEntropyLoss.backward(y_pred_2d.data, y_true_2d.data).data,
+        np.array([[-0.53603657, 0.28140804, 0.25462853]]),
+    )
 
 
 def test_BinaryCrossEntropyLoss():
