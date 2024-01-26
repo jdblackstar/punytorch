@@ -1,8 +1,11 @@
 import numpy as np
+import pytest
 
 from punytorch.tensor import Tensor
 
 
+@pytest.mark.gpt
+@pytest.mark.mnist
 def test_ReLU():
     x = Tensor(np.array([-2, -1, 0, 1, 2]), requires_grad=True)
     y = x.relu()
@@ -11,6 +14,7 @@ def test_ReLU():
     assert np.all(x.grad == np.array([0, 0, 0, 1, 1]))
 
 
+@pytest.mark.gpt
 def test_Sigmoid():
     x = Tensor(np.array([0, 1, 2, 3, 4, 5]), requires_grad=True)
     y = x.sigmoid()
@@ -19,6 +23,7 @@ def test_Sigmoid():
     assert np.allclose(x.grad, y.data * (1 - y.data))
 
 
+# @pytest.mark.gpt
 # def test_Softmax():
 #     x = Tensor(np.array([0, 1, 2, 3, 4, 5]))
 #     y = x.softmax()

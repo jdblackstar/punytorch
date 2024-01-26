@@ -1,14 +1,19 @@
 import numpy as np
+import pytest
 
 from punytorch.tensor import Tensor
 
 
+@pytest.mark.gpt
+@pytest.mark.mnist
 def test_Tensor():
     x = Tensor([1, 2, 3])
     assert isinstance(x.data, np.ndarray)
     assert x.data.tolist() == [1, 2, 3]
 
 
+@pytest.mark.gpt
+@pytest.mark.mnist
 def test_backpropagation():
     x = Tensor([1.0, 2.0, 3.0], requires_grad=True)
     y = Tensor([4.0, 5.0, 6.0], requires_grad=True)
