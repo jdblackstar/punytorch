@@ -24,6 +24,12 @@ class Tensor:
     def shape(self):
         return self.data.shape
 
+    def __str__(self):
+        return "tensor([" + ", ".join(f"{x:.1f}" for x in self.data.flatten()) + "])"
+
+    def __repr__(self):
+        return self.__str__()
+
     def __len__(self):
         return self.data.shape[0]
 
