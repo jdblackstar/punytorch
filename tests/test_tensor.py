@@ -29,5 +29,5 @@ def test_backpropagation():
     The gradient of z with respect to x is the value of y (from the x * y part of the operation),
     so x.grad = [4.0, 5.0, 6.0]
     """
-    assert np.allclose(y.grad.data, [2.0, 3.0, 4.0])
-    assert np.allclose(x.grad.data, [4.0, 5.0, 6.0])
+    assert np.allclose(y.grad.data, [2.0, 3.0, 4.0]), f"y.grad.data should be [2.0, 3.0, 4.0], got {y.grad.data}"
+    assert np.allclose(x.grad.data, [4.0, 5.0, 6.0]), f"x.grad.data should be [4.0, 5.0, 6.0], got {x.grad.data}"
