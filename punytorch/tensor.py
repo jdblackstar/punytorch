@@ -28,7 +28,20 @@ class Tensor:
         return self.data.shape[0]
 
     def __getitem__(self, index):
-        return self.data[index]
+        # Wrap the sliced array in a Tensor object
+        if isinstance(index, Tensor):
+            index = index.data
+        if isinstance(index, (int, np.integer, slice)):
+            # Handle integer, numpy integer, and slice indexing
+            return Tensor(self.data[index], requires_grad=self.requires_grad)
+        elif isinstance(index, (tuple, list)) or (isinstance(index, np.ndarray) and index.ndim == 1):
+            # Handle 1D fancy indexing for numpy arrays
+            return Tensor(self.data[index], requires_grad=self.requires_grad)
+        elif isinstance(index, np.ndarray) and index.ndim == 2:
+            # Handle 2D fancy indexing for numpy arrays
+            return Tensor(self.data[index[:, None], index], requires_grad=self.requires_grad)
+        else:
+            raise IndexError("Indexing with the provided index is not supported")
 
     @property
     def T(self):
@@ -45,6 +58,11 @@ class Tensor:
         Returns:
             Tensor: A tensor with dimensions dim0 and dim1 swapped.
         """
+        if dim0 >= self.data.ndim or dim1 >= self.data.ndim:
+            raise ValueError(
+                f"Dimension out of range. Tensor has {self.data.ndim} dimensions but dim0={dim0} or dim1={dim1} was provided."
+            )
+
         axes = list(range(self.data.ndim))
         axes[dim0], axes[dim1] = axes[dim1], axes[dim0]
         data = self.data.transpose(axes)
@@ -111,9 +129,9 @@ class Tensor:
 
     @staticmethod
     def ensure_tensor(data):
-        if isinstance(data, Tensor):
-            return data
-        return Tensor(data)
+        if not isinstance(data, Tensor):
+            data = Tensor(np.array(data))
+        return data
 
     """
     ML OPS
@@ -158,61 +176,43 @@ class Tensor:
     BINARY OPS
     """
 
-    def __add__(self, other) -> "Tensor":
-        other = Tensor.ensure_tensor(other)
-        result = Tensor(Add.forward(self, other))
-        if self.requires_grad or other.requires_grad:
-            result.context = Function(Add, self, other)
-            result.requires_grad = True
-        return result
+    def __add__(self, other):
+        return Tensor(
+            Add.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
+        )
 
-    def __sub__(self, other) -> "Tensor":
-        other = Tensor.ensure_tensor(other)
-        result = Tensor(Sub.forward(self, other))
-        if self.requires_grad or other.requires_grad:
-            result.context = Function(Sub, self, other)
-            result.requires_grad = True
-        return result
+    def __sub__(self, other):
+        return Tensor(
+            Sub.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
+        )
 
-    def __mul__(self, other) -> "Tensor":
-        other = Tensor.ensure_tensor(other)
-        result = Tensor(Mul.forward(self, other))
-        if self.requires_grad or other.requires_grad:
-            result.context = Function(Mul, self, other)
-            result.requires_grad = True
-        return result
+    def __mul__(self, other):
+        return Tensor(
+            Mul.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
+        )
 
-    def __truediv__(self, other) -> "Tensor":
-        other = Tensor.ensure_tensor(other)
-        result = Tensor(TrueDiv.forward(self, other))
-        if self.requires_grad or other.requires_grad:
-            result.context = Function(TrueDiv, self, other)
-            result.requires_grad = True
-        return result
+    def __truediv__(self, other):
+        return Tensor(
+            TrueDiv.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
+        )
 
-    def __mod__(self, other) -> "Tensor":
-        other = Tensor.ensure_tensor(other)
-        result = Tensor(Mod.forward(self, other))
-        if self.requires_grad or other.requires_grad:
-            result.context = Function(Mod, self, other)
-            result.requires_grad = True
-        return result
+    def __mod__(self, other):
+        return Tensor(
+            Mod.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
+        )
 
-    def __pow__(self, other) -> "Tensor":
-        other = Tensor.ensure_tensor(other)
-        result = Tensor(Pow.forward(self, other))
-        if self.requires_grad or other.requires_grad:
-            result.context = Function(Pow, self, other)
-            result.requires_grad = True
-        return result
+    def __pow__(self, other):
+        return Tensor(
+            Pow.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
+        )
 
     def __matmul__(self, other):
-        other = Tensor.ensure_tensor(other)
-        result = Tensor(MatMul.forward(self, other))
-        if self.requires_grad or other.requires_grad:
-            result.context = Function(MatMul, self, other)
-            result.requires_grad = True
-        return result
+        return Tensor(
+            MatMul.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
+        )
+
+    def __tanh__(self):
+        return Tensor(Tanh.forward(self), requires_grad=self.requires_grad)
 
     """
     UNARY OPS
@@ -306,3 +306,19 @@ class Tensor:
             return self  # Since NumPy arrays are already on the CPU, just return self.
         else:
             raise NotImplementedError("Only 'cpu' device is supported for the Tensor class.")
+
+    def mean(self, axis=None, keepdims=False):
+        """
+        Compute the mean along the specified axis.
+        """
+        mean_data = np.mean(self.data, axis=axis, keepdims=keepdims)
+        result = Tensor(mean_data)
+        if self.requires_grad:
+            # Assuming the Tensor class has a way to set the grad_fn after construction
+            size = self.data.size if axis is None else self.data.shape[axis]
+
+            def grad_fn(grad):
+                return grad * np.ones_like(self.data) / size
+
+            result.grad_fn = grad_fn
+        return result

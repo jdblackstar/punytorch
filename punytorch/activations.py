@@ -71,7 +71,13 @@ class Sigmoid:
         """
         x = context.args[0].data
         sigmoid_x = 1 / (1 + np.exp(-x))
-        return sigmoid_x * (1 - sigmoid_x) * grad, None
+
+        # Make sure we take the data from grad, either as grad.data if Tensor or grad if np.ndarray
+        grad_array = grad.data if not isinstance(grad, np.ndarray) else grad
+
+        # Perform element-wise multiplication
+        grad_input = sigmoid_x * (1 - sigmoid_x) * grad_array
+        return grad_input, None
 
 
 class Softmax:
@@ -94,7 +100,7 @@ class Softmax:
         """
         if dim is None:
             dim = -1
-        e_x = np.exp(x - np.max(x, axis=dim, keepdims=True))  # subtract max(x) for numerical stability
+        e_x = np.exp(x.data - np.max(x.data, axis=dim, keepdims=True))  # subtract max(x.data) for numerical stability
         return e_x / np.sum(e_x, axis=dim, keepdims=True)
 
     @staticmethod

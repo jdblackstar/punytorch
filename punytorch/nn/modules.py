@@ -135,7 +135,7 @@ class Module:
         for p in self.parameters():
             p.requires_grad = True
 
-    def forward(self, *args, **kwargs):
+    def forward(self, *args, **kwargs) -> Tensor:
         """
         Defines the computation performed at every call.
 
@@ -250,7 +250,7 @@ class Embedding(Module):
         Returns:
             Tensor: The output of the embedding layer, which are the embedding vectors corresponding to the input indices.
         """
-        return self.weight[x]
+        return Tensor(self.weight.data[x.data, :], requires_grad=x.requires_grad)
 
     def backward(self, grad: Tensor) -> Tensor:
         """
