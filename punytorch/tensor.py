@@ -183,42 +183,66 @@ class Tensor:
     """
 
     def __add__(self, other):
-        return Tensor(
+        result = Tensor(
             Add.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
         )
+        if result.requires_grad:
+            result.context = Function(Add, self, other)
+        return result
 
     def __sub__(self, other):
-        return Tensor(
+        result = Tensor(
             Sub.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
         )
+        if result.requires_grad:
+            result.context = Function(Sub, self, other)
+        return result
 
     def __mul__(self, other):
-        return Tensor(
+        result = Tensor(
             Mul.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
         )
+        if result.requires_grad:
+            result.context = Function(Mul, self, other)
+        return result
 
     def __truediv__(self, other):
-        return Tensor(
+        result = Tensor(
             TrueDiv.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
         )
+        if result.requires_grad:
+            result.context = Function(TrueDiv, self, other)
+        return result
 
     def __mod__(self, other):
-        return Tensor(
+        result = Tensor(
             Mod.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
         )
+        if result.requires_grad:
+            result.context = Function(Mod, self, other)
+        return result
 
     def __pow__(self, other):
-        return Tensor(
+        result = Tensor(
             Pow.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
         )
+        if result.requires_grad:
+            result.context = Function(Pow, self, other)
+        return result
 
     def __matmul__(self, other):
-        return Tensor(
+        result = Tensor(
             MatMul.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
         )
+        if result.requires_grad:
+            result.context = Function(MatMul, self, other)
+        return result
 
     def __tanh__(self):
-        return Tensor(Tanh.forward(self), requires_grad=self.requires_grad)
+        result = Tensor(Tanh.forward(self), requires_grad=self.requires_grad)
+        if result.requires_grad:
+            result.context = Function(Tanh, self)
+        return result
 
     """
     UNARY OPS
