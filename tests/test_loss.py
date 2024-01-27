@@ -55,7 +55,7 @@ def test_BinaryCrossEntropyLoss():
         0.14462152754328741,
     )
     assert np.allclose(
-        BinaryCrossEntropyLoss.backward(y_pred.data, y_true.data),
+        BinaryCrossEntropyLoss.backward(y_pred.data, y_true.data).data,
         np.array([-1.11111111, -1.25, -1.11111111]),
     )
 
@@ -68,6 +68,6 @@ def test_CategoricalCrossEntropyLoss():
         0.35667494393873245,
     )
     assert np.allclose(
-        CategoricalCrossEntropyLoss.backward(y_pred.data, y_true.data),
+        CategoricalCrossEntropyLoss.backward(y_pred.data, y_true.data).data,
         np.array([-1.42857143, 0.0, 0.0]),
     )
