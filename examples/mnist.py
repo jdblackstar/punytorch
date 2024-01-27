@@ -43,7 +43,8 @@ class Network(Module):
 @Tensor.no_grad()
 def test(model: Network, test_images: Tensor, test_labels: Tensor):
     preds = model.forward(test_images)
-    pred_indices = np.argmax(preds, axis=-1)
+    preds_np = Tensor.data_to_numpy(preds)  # Convert Tensor to numpy array
+    pred_indices = np.argmax(preds_np, axis=-1)
 
     # Convert one-hot encoded labels to class indices
     test_labels = np.argmax(Tensor.data_to_numpy(test_labels.data), axis=-1)
@@ -79,9 +80,11 @@ def train(
                 pred = model.forward(batch_images)
                 loss = cross_entropy(pred, batch_labels)
                 loss.backward()
-                for param in model.parameters():
-                    print(param.grad)
                 optimizer.step()
+
+                # for param in model.parameters():
+                #     if np.all(param.data == 0):
+                #         print(f"All weights are zero for parameter {param}")
 
                 pbar.update(1)
                 pbar.set_postfix({"loss": float(loss.item())})
