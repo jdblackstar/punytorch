@@ -96,7 +96,7 @@ class Tensor:
     @staticmethod
     def data_to_numpy(data):
         if isinstance(data, (int, float)):
-            return np.arary([data])
+            return np.array([data])
         if isinstance(data, (list, tuple)):
             return np.array(data)
         if isinstance(data, np.ndarray):
