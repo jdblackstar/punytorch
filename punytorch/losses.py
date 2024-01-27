@@ -62,8 +62,9 @@ class CrossEntropyLoss:
                     The result is wrapped in a Tensor.
         """
         probs = Softmax.forward(y_pred)
-        log_likelihood = -np.log(probs) * y_true  # Element-wise multiplication
-        loss = np.sum(log_likelihood) / len(y_true)
+        # the multiplication here has to be [Tensor] * other, because the method is (self, other)
+        log_likelihood = y_true * -np.log(probs)  # Element-wise multiplication
+        loss = np.sum(log_likelihood.data) / len(y_true)
         return Tensor(loss, requires_grad=True)
 
     @staticmethod
