@@ -13,6 +13,7 @@ class Tensor:
             self.data = data
         else:
             self.data = np.array(data)
+        self.ndim = self.data.ndim
         self.requires_grad = requires_grad
         # if requires_grad is True, then we need to initialize the gradient to zeros
         # and make sure that they're floats, since backprop uses floats
