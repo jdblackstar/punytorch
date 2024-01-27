@@ -96,7 +96,7 @@ class TrueDiv(Operation):
         x, y = context.args
         # The gradient with respect to x is 1/y
         # The gradient with respect to y is -x/y^2
-        return grad / y.data, -x.data * grad / (y.data**2)
+        return grad.data / y.data, -x.data * grad.data / (y.data**2)
 
 
 class Mod(Operation):
@@ -165,7 +165,7 @@ class MatMul(Operation):
     def backward(context, grad):
         x, y = context.args
         # If Z = X @ Y, then d(Z)/dX = grad @ Y^T and d(Z)/dY = X^T @ grad
-        return grad @ np.transpose(y.data), np.transpose(x.data) @ grad
+        return grad.data @ np.transpose(y.data), np.transpose(x.data) @ grad.data
 
 
 class Tanh(Operation):
