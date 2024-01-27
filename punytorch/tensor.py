@@ -81,6 +81,18 @@ class Tensor:
         assert np.prod(self.data.shape) == 1, "Only one element tensors can be converted to Python scalars"
         return self.data.item()
 
+    def __gt__(self, other):
+        if isinstance(other, Tensor):
+            return self.data > other.data
+        else:
+            return self.data > other
+
+    def __lt__(self, other):
+        if isinstance(other, Tensor):
+            return self.data < other.data
+        else:
+            return self.data < other
+
     @staticmethod
     def data_to_numpy(data):
         if isinstance(data, (int, float)):
