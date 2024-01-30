@@ -1,4 +1,7 @@
+import logging
+
 import pytest
+
 from datasets.mnist.fetch_mnist import load_mnist
 
 

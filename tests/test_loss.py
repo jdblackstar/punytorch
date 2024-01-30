@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import pytest
 
@@ -8,6 +10,8 @@ from punytorch.losses import (
     CategoricalCrossEntropyLoss,
 )
 from punytorch.tensor import Tensor
+
+logger = logging.getLogger()
 
 
 def test_MSELoss():
