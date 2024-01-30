@@ -13,6 +13,7 @@ Table of Contents:
 
 # 1. Imports
 from dataclasses import dataclass
+import logging
 import numpy as np
 
 from tqdm import tqdm
@@ -241,10 +242,13 @@ class MHA(Module):
         """
         batch_size, n_head, time_step, channels = key.shape
         scaling_factor = Tensor(channels**-0.5)
-        attention_scores = (query @ key.transpose(-1, -2)) * scaling_factor
+        attention_scores = (query @ np.transpose(key.data_to_numpy(), (key.ndim - 2, key.ndim - 1))) * scaling_factor
+        # logger.debug(value.shape, attention_scores.shape)
         attention_scores = mask[:, :, :time_step, :time_step] + attention_scores
+        # logger.debug(value.shape, attention_scores.shape)
         attention_scores = Softmax().forward(attention_scores, dim=-1)
-        x = attention_scores @ value
+        # logger.debug(value.shape, attention_scores.shape)
+        x = value @ attention_scores
         if not isinstance(x, Tensor):
             raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
         return x
@@ -506,4 +510,6 @@ def main():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level="INFO")
+    logger = logging.getLogger(__name__)
     main()
