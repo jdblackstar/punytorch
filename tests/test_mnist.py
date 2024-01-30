@@ -1,6 +1,12 @@
+import logging
+
+import pytest
+
 from datasets.mnist.fetch_mnist import load_mnist
 
 
+@pytest.mark.dataset
+@pytest.mark.mnist
 def test_mnist():
     (train_images, train_labels), (test_images, test_labels) = load_mnist("datasets/mnist")
     assert train_images.shape == (60000, 28, 28, 1), "Unexpected shape for train_images"

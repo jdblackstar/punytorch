@@ -13,6 +13,7 @@ Table of Contents:
 
 # 1. Imports
 from dataclasses import dataclass
+import logging
 import numpy as np
 
 from tqdm import tqdm
@@ -70,6 +71,10 @@ def estimate_loss(model, train_data, val_data, hyperparameters):
         dict: A dictionary with the average loss for the training and validation sets.
     """
     out = {}
+
+    # put the model in evaluation mode
+    # - prevents neuron dropout
+    # - batchnorm layers use running statistics instead of batch statistics
     model.eval()
 
     for split in ["train", "val"]:
@@ -84,6 +89,9 @@ def estimate_loss(model, train_data, val_data, hyperparameters):
             loss = CrossEntropyLoss.forward(logits, targets)
             losses.append(loss.item())
         out[split] = sum(losses) / len(losses)
+
+    # return the model to training mode
+    # it's generally good practice to make sure that a function cleans up after itself
     model.train()
     return out
 
@@ -106,11 +114,19 @@ def get_batch(split, train_data, val_data, hyperparameters):
         tuple: A tuple containing two Tensors. The first tensor contains the input data
                and the second tensor contains the target data.
     """
+    # choose the correct dataset based on the 'split' parameter
     data = train_data if split == "train" else val_data
     len_data = len(data)
-    ix = np.random.randint(0, len_data - hyperparameters.block_size, hyperparameters.batch_size)
-    x = Tensor.stack([data[i : i + hyperparameters.block_size] for i in ix])
-    y = Tensor.stack([data[i + 1 : i + hyperparameters.block_size + 1] for i in ix])
+
+    # randomly select starting indices for the sequences
+    idx = np.random.randint(0, len_data - hyperparameters.block_size, hyperparameters.batch_size)
+
+    # create input (x) and target (y) sequences based on block_size
+    # target (y) sequence is offset by one (common practice in language modeling)
+    x = Tensor.stack([data[i : i + hyperparameters.block_size] for i in idx])
+    y = Tensor.stack([data[i + 1 : i + hyperparameters.block_size + 1] for i in idx])
+
+    # move the tensor to the specified device
     x, y = x.to(hyperparameters.device), y.to(hyperparameters.device)
     return x, y
 
@@ -137,10 +153,16 @@ def generate(model, idx, max_new_tokens, hyperparameters):
     for i in range(max_new_tokens):
         idx_cond = idx[:, -hyperparameters.block_size :]
         logits = model(idx_cond)
-        logits = logits[:, -1, :]
+        logits = logits[:, -1, :]  # only take the last token, since we're predicting the "next" token
+
+        # logits are converted to a probability distribution using the softmax function
         probs = Softmax().forward(logits, dim=-1)
+
+        # the next index is sampled from the probability distribution, then added to the sequence
         idx_next = Tensor.multinomial(probs, num_samples=1)
         idx = Tensor.cat((idx, idx_next), dim=1)
+
+    # return the model to training mode
     model.train()
     return idx[:, hyperparameters.block_size :]
 
@@ -184,6 +206,9 @@ class MHA(Module):
         Returns:
             Tensor: The output of the Multi-Head Attention layer.
         """
+        if not isinstance(x, Tensor):
+            raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
+
         batch_size, time_step, channels = x.shape
         key = self.key(x)
         query = self.query(x)
@@ -192,9 +217,14 @@ class MHA(Module):
         query = query.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
         value = value.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
 
-        attn = self.attention(key, query, value, self.mask)
-        attn = attn.reshape(batch_size, -1).reshape(batch_size, time_step, channels)
-        return self.proj(attn)
+        # Call the static attention method
+        x = MHA.attention(key, query, value, self.mask)
+
+        # Reshape or process the output from the attention method if necessary
+        # For example, if you need to concatenate heads or apply a final linear layer
+        # output = ...
+
+        return x
 
     @staticmethod
     def attention(key, query, value, mask) -> Tensor:
@@ -211,10 +241,16 @@ class MHA(Module):
             Tensor: The output of the attention mechanism.
         """
         batch_size, n_head, time_step, channels = key.shape
-        attention_scores = (query @ key.transpose(-1, -2)) * (channels**-0.5)
+        scaling_factor = Tensor(channels**-0.5)
+        attention_scores = (query @ np.transpose(key.data_to_numpy(), (key.ndim - 2, key.ndim - 1))) * scaling_factor
+        # logger.debug(value.shape, attention_scores.shape)
         attention_scores = mask[:, :, :time_step, :time_step] + attention_scores
+        # logger.debug(value.shape, attention_scores.shape)
         attention_scores = Softmax().forward(attention_scores, dim=-1)
-        x = attention_scores @ value
+        # logger.debug(value.shape, attention_scores.shape)
+        x = value @ attention_scores
+        if not isinstance(x, Tensor):
+            raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
         return x
 
 
@@ -262,7 +298,7 @@ class RMSNorm(Module):
         """
         super().__init__()
         self.eps = eps
-        self.weight = Parameter(Tensor(np.ones(dim)))
+        self.weight = Parameter(np.ones(dim))
 
     def _norm(self, x: Tensor):
         """
@@ -274,8 +310,13 @@ class RMSNorm(Module):
         Returns:
             Tensor: The normalized tensor.
         """
-        rms = ((x**2).mean(axis=-1, keepdim=True) + self.eps) ** 0.5
-        return x / rms
+        if not isinstance(x, Tensor):
+            raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
+        rms = ((x**2).mean(axis=-1, keepdims=True) + self.eps) ** 0.5
+        normalized_x = x / rms
+        if not isinstance(normalized_x, Tensor):
+            raise TypeError(f"Expected normalized_x to be a Tensor, but got {type(normalized_x).__name__}")
+        return normalized_x
 
     def forward(self, x):
         """
@@ -288,6 +329,8 @@ class RMSNorm(Module):
             Tensor: The output of the RMSNorm.
         """
         output = self._norm(x)
+        if not isinstance(self.weight, Tensor):
+            raise TypeError(f"Expected self.weight to be a Tensor, but got {type(self.weight)}")
         return output * self.weight
 
 
@@ -349,7 +392,7 @@ class GPT(Module):
         self.norm = RMSNorm(model_args.d_model)
         self.proj = Linear(model_args.d_model, model_args.vocab_size)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         """
         Defines the computation performed at every call.
 
@@ -359,8 +402,9 @@ class GPT(Module):
         Returns:
             Tensor: The output of the GPT model.
         """
+        if not isinstance(x, Tensor):
+            raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
         B, T = x.shape
-
         token_embedding = self.token_embedding(x)
         position_embedding = self.position_embedding(Tensor(np.arange(T)).to(self.device))
         x = token_embedding + position_embedding
@@ -393,10 +437,10 @@ def main():
 
     # fmt: off
     model_args = ModelArgs(
-        seq_len=10,
+        seq_len=1000,
         d_model=16,
         n_heads=2,
-        vocab_size=10,
+        vocab_size=1000,
         num_layers=2,
         esp=1e-5,
     )
@@ -410,6 +454,12 @@ def main():
     n = int(0.95 * len(data))
     train_data = data[:n]
     val_data = data[n:]
+
+    # type checks before moving on
+    if not all(isinstance(x, Tensor) for x in [data, train_data, val_data]):
+        raise TypeError("All data must be Tensors")
+    if not all(isinstance(p, Tensor) for p in model.parameters()):
+        raise TypeError("All model parameters must be instances of Tensor")
 
     # TODO:
     # 1. loop through hypermarameters.max_iters
@@ -432,29 +482,34 @@ def main():
     # - generate some new tokens
     # - decode these tokens into text
     # - print the text
-    for iter in range(1, hyperparameters.max_iters):
-        if iter % hyperparameters.eval_interval == 0 or iter == hyperparameters.max_iters - 1:
-            print("=" * 50)
-            losses = estimate_loss(model, train_data, val_data, hyperparameters.eval_iters)
-            print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
-            context = Tensor(np.zeros((1, 1))).to(hyperparameters.device)
-            print(tokenizer.decode(generate(model, context, max_new_tokens=500)[0].tolist()))
+    with tqdm(total=hyperparameters.max_iters, desc="Training Progress") as pbar:
+        for iter in range(1, hyperparameters.max_iters):
+            if iter % hyperparameters.eval_interval == 0 or iter == hyperparameters.max_iters - 1:
+                print("=" * 50)
+                losses = estimate_loss(model, train_data, val_data, hyperparameters.eval_iters)
+                print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+                context = Tensor(np.zeros((1, 1))).to(hyperparameters.device)
+                print(tokenizer.decode(generate(model, context, max_new_tokens=500)[0].tolist()))
+                optimizer.zero_grad()
+                print("-" * 50)
+            data, targets = get_batch("train", train_data, val_data, hyperparameters)
+            logits = model(data)
+            batch_size, time_step, channels = logits.shape
+            logits = logits.view(batch_size * time_step, channels)
+            targets = targets.view(batch_size * time_step)
+            loss = CrossEntropyLoss.forward(logits, targets)
+            loss.backward()
+            optimizer.step()
             optimizer.zero_grad()
-            print("-" * 50)
-        data, targets = get_batch("train", train_data, val_data, hyperparameters)
-        logits = model(data)
-        batch_size, time_step, channels = logits.shape
-        logits = logits.view(batch_size * time_step, channels)
-        targets = targets.view(batch_size * time_step)
-        loss = CrossEntropyLoss.forward(logits, targets)
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-        if iter % 50 == 0:
-            print(f"{iter=} {loss.item()=}")
+            if iter % 50 == 0:
+                print(f"{iter=} {loss.item()=}")
+
+            pbar.update(1)
     context = Tensor.zeros((1, 1)).to(hyperparameters.device).long()
     print(tokenizer.decode(generate(model, context, max_new_tokens=500)[0].tolist()))
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level="INFO")
+    logger = logging.getLogger(__name__)
     main()

@@ -1,7 +1,8 @@
 import argparse
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 
 from datasets.mnist.fetch_mnist import download_mnist, load_mnist
 

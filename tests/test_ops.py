@@ -1,6 +1,11 @@
+import logging
+
 import numpy as np
+import pytest
 
 from punytorch.tensor import Tensor
+
+logger = logging.getLogger()
 
 
 def test_Add():

@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 
 from punytorch.tensor import Tensor
@@ -62,8 +64,9 @@ class CrossEntropyLoss:
                     The result is wrapped in a Tensor.
         """
         probs = Softmax.forward(y_pred)
-        log_likelihood = -np.log(probs) * y_true  # Element-wise multiplication
-        loss = np.sum(log_likelihood) / len(y_true)
+        # the multiplication here has to be [Tensor] * other, because the method is (self, other)
+        log_likelihood = y_true * -np.log(probs)  # Element-wise multiplication
+        loss = np.sum(log_likelihood.data) / len(y_true)
         return Tensor(loss, requires_grad=True)
 
     @staticmethod
@@ -80,10 +83,14 @@ class CrossEntropyLoss:
                     This is computed as the difference between the softmax probabilities and the true labels.
                     The result is wrapped in a Tensor.
         """
-        exps = np.exp(y_pred - np.max(y_pred, axis=1, keepdims=True)) + 1e-22
-        probs = exps / np.sum(exps, axis=1, keepdims=True)
+        if y_pred.ndim == 1:
+            exps = np.exp(y_pred - np.max(y_pred)) + 1e-22
+            probs = exps / np.sum(exps)
+        else:
+            exps = np.exp(y_pred - np.max(y_pred, axis=1, keepdims=True)) + 1e-22
+            probs = exps / np.sum(exps, axis=1, keepdims=True)
         d_loss = probs - y_true  # Subtract the one-hot encoded labels
-        d_loss /= len(y_true)
+        d_loss /= y_true.shape[0]
         return Tensor(d_loss)  # Wrap the result in a Tensor
 
 
