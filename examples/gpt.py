@@ -21,8 +21,8 @@ from tqdm import tqdm
 from punytorch.activations import ReLU, Softmax
 from punytorch.helpers import CharTokenizer
 from punytorch.losses import CrossEntropyLoss
-from punytorch.nn.modules import Embedding, Linear, Module, ModuleList, Parameter
-from punytorch.nn.optimizers import Adam
+import punytorch.nn as nn
+from punytorch.optim import Adam
 from punytorch.tensor import Tensor
 
 
@@ -168,7 +168,7 @@ def generate(model, idx, max_new_tokens, hyperparameters):
 
 
 # 4. Model Components (MHA, MLP, RMSNorm, Block, GPT)
-class MHA(Module):
+class MHA(nn.Module):
     def __init__(self, model_args: ModelArgs) -> None:
         """
         Initializes the Multi-Head Attention module.
@@ -177,24 +177,18 @@ class MHA(Module):
             model_args (ModelArgs): The arguments for the model, including dimensions and sequence length.
         """
         super().__init__()
-        self.key = Linear(model_args.d_model, model_args.d_model)
-        self.query = Linear(model_args.d_model, model_args.d_model)
-        self.value = Linear(model_args.d_model, model_args.d_model)
-        self.proj = Linear(model_args.d_model, model_args.d_model)
+        self.key = nn.Linear(model_args.d_model, model_args.d_model)
+        self.query = nn.Linear(model_args.d_model, model_args.d_model)
+        self.value = nn.Linear(model_args.d_model, model_args.d_model)
+        self.proj = nn.Linear(model_args.d_model, model_args.d_model)
         self.head_dim = model_args.d_model // model_args.n_heads
 
         self.n_heads = model_args.n_heads
-        mask = Tensor(
-            (
-                np.tril(np.zeros((1, 1, model_args.seq_len, model_args.seq_len)))
-                + np.triu(
-                    -np.inf * np.ones((1, 1, model_args.seq_len, model_args.seq_len)),
-                    k=1,
-                )
-            )
-        ).float()
-
-        self.register_buffer("mask", mask)
+        mask = np.tril(np.ones((model_args.seq_len, model_args.seq_len)))
+        mask = np.triu(mask, k=1) * -np.inf
+        # Repeat the mask for each head
+        mask = np.repeat(mask[np.newaxis, np.newaxis, :, :], self.n_heads, axis=1)
+        self.register_buffer("mask", Tensor(mask).float())
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -240,21 +234,24 @@ class MHA(Module):
         Returns:
             Tensor: The output of the attention mechanism.
         """
+        logger.debug(
+            f"key shape: {key.shape}, query shape: {query.shape}, value shape: {value.shape}, mask shape: {mask.shape}"
+        )
         batch_size, n_head, time_step, channels = key.shape
         scaling_factor = Tensor(channels**-0.5)
-        attention_scores = (query @ np.transpose(key.data_to_numpy(), (key.ndim - 2, key.ndim - 1))) * scaling_factor
-        # logger.debug(value.shape, attention_scores.shape)
+        attention_scores = (query @ key.transpose(-2, -1)) * scaling_factor
+        logger.debug(value.shape, attention_scores.shape)
         attention_scores = mask[:, :, :time_step, :time_step] + attention_scores
-        # logger.debug(value.shape, attention_scores.shape)
+        logger.debug(value.shape, attention_scores.shape)
         attention_scores = Softmax().forward(attention_scores, dim=-1)
-        # logger.debug(value.shape, attention_scores.shape)
+        logger.debug(f"value shape: {value.shape}, attention_scores shape: {attention_scores.shape}")
         x = value @ attention_scores
         if not isinstance(x, Tensor):
             raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
         return x
 
 
-class MLP(Module):
+class MLP(nn.Module):
     def __init__(self, in_features, out_features, expansion_size: int = 3):
         """
         Initializes the MLP module.
@@ -265,9 +262,9 @@ class MLP(Module):
             expansion_size (int, optional): The factor by which the input features are expanded in the hidden layers. Defaults to 3.
         """
         super().__init__()
-        self.w1 = Linear(in_features, in_features * expansion_size)
-        self.w2 = Linear(in_features * expansion_size, in_features * expansion_size)
-        self.w3 = Linear(in_features * expansion_size, out_features)
+        self.w1 = nn.Linear(in_features, in_features * expansion_size)
+        self.w2 = nn.Linear(in_features * expansion_size, in_features * expansion_size)
+        self.w3 = nn.Linear(in_features * expansion_size, out_features)
 
     def forward(self, x):
         """
@@ -287,7 +284,7 @@ class MLP(Module):
         return x
 
 
-class RMSNorm(Module):
+class RMSNorm(nn.Module):
     def __init__(self, dim: int, eps: float = 1e-5):
         """
         Initializes the RMSNorm module.
@@ -298,7 +295,7 @@ class RMSNorm(Module):
         """
         super().__init__()
         self.eps = eps
-        self.weight = Parameter(np.ones(dim))
+        self.weight = nn.Parameter(np.ones(dim))
 
     def _norm(self, x: Tensor):
         """
@@ -334,7 +331,7 @@ class RMSNorm(Module):
         return output * self.weight
 
 
-class Block(Module):
+class Block(nn.Module):
     """
     A Block represents a single block in the transformer model, consisting of a
     Multi-Head Attention (MHA) layer and a Feed-Forward Network (FFN).
@@ -370,7 +367,7 @@ class Block(Module):
         return x
 
 
-class GPT(Module):
+class GPT(nn.Module):
     """
     The GPT class represents the GPT model, which consists of token embeddings, position embeddings,
     a list of transformer blocks, a normalization layer, and a projection layer.
@@ -386,11 +383,11 @@ class GPT(Module):
         """
         super().__init__()
         self.device = device
-        self.token_embedding = Embedding(model_args.vocab_size, model_args.d_model)
-        self.position_embedding = Embedding(model_args.seq_len, model_args.d_model)
-        self.layers = ModuleList([Block(model_args) for _ in range(model_args.num_layers)])
+        self.token_embedding = nn.Embedding(model_args.vocab_size, model_args.d_model)
+        self.position_embedding = nn.Embedding(model_args.seq_len, model_args.d_model)
+        self.layers = nn.ModuleList([Block(model_args) for _ in range(model_args.num_layers)])
         self.norm = RMSNorm(model_args.d_model)
-        self.proj = Linear(model_args.d_model, model_args.vocab_size)
+        self.proj = nn.Linear(model_args.d_model, model_args.vocab_size)
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -510,6 +507,6 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level="INFO")
+    logging.basicConfig(level="DEBUG")
     logger = logging.getLogger(__name__)
     main()

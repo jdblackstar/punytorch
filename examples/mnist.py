@@ -9,8 +9,8 @@ from tqdm import tqdm
 from datasets.mnist.fetch_mnist import download_mnist, load_mnist
 from punytorch.helpers import is_one_hot
 from punytorch.losses import CrossEntropyLoss
-from punytorch.nn.modules import Linear, Module
-from punytorch.nn.optimizers import Adam
+import punytorch.nn as nn
+from punytorch.optim import Adam
 from punytorch.tensor import Tensor
 
 # Constants
@@ -27,12 +27,12 @@ def get_batch(images: Tensor, labels: Tensor):
         yield images[i : i + BATCH_SIZE], labels[i : i + BATCH_SIZE]
 
 
-class Network(Module):
+class Network(nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.l1 = Linear(28 * 28, 128)
-        self.l2 = Linear(128, 64)
-        self.l3 = Linear(64, 10)
+        self.l1 = nn.Linear(28 * 28, 128)
+        self.l2 = nn.Linear(128, 64)
+        self.l3 = nn.Linear(64, 10)
 
     def forward(self, x: Tensor) -> Tensor:
         x = Tensor.relu(self.l1(x))
