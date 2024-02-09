@@ -247,6 +247,15 @@ def main():
     # create a PyTorch optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=hyperparameters.learning_rate)
 
+    total_tokens = len(encode(text))  # Assuming 'text' contains your entire dataset
+    train_tokens = int(0.9 * total_tokens)  # 90% for training
+    block_size = hyperparameters.block_size  # From your Hyperparameters data class
+
+    # Calculate the maximum number of non-overlapping sequences
+    max_sequences = train_tokens // block_size
+
+    print(f"Maximum number of non-overlapping training sequences: {max_sequences}")
+
     for iter in range(hyperparameters.max_iters):
         # every once in a while evaluate the loss on train and val sets
         if iter % hyperparameters.eval_interval == 0 or iter == hyperparameters.max_iters - 1:
