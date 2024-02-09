@@ -226,6 +226,8 @@ class GPTLanguageModel(nn.Module):
 
 
 def main():
+    import time  # Import the time module to measure training duration
+
     hyperparameters = Hyperparameters(
         batch_size=64,
         block_size=256,
@@ -247,20 +249,26 @@ def main():
     # create a PyTorch optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=hyperparameters.learning_rate)
 
-    total_tokens = len(encode(text))  # Assuming 'text' contains your entire dataset
+    total_tokens = len(encode(text))  # Assuming 'text' contains the entire dataset
     train_tokens = int(0.9 * total_tokens)  # 90% for training
-    block_size = hyperparameters.block_size  # From your Hyperparameters data class
+    block_size = hyperparameters.block_size  # From the Hyperparameters data class
 
     # Calculate the maximum number of non-overlapping sequences
     max_sequences = train_tokens // block_size
 
     print(f"Maximum number of non-overlapping training sequences: {max_sequences}")
 
+    start_time = time.time()  # Record the start time of the training
+
     for iter in range(hyperparameters.max_iters):
         # every once in a while evaluate the loss on train and val sets
         if iter % hyperparameters.eval_interval == 0 or iter == hyperparameters.max_iters - 1:
+            current_time = time.time()  # Get the current time
+            elapsed_time = current_time - start_time  # Calculate elapsed time since the start
             losses = estimate_loss(model, hyperparameters)
-            print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+            print(
+                f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}. Elapsed time: {elapsed_time:.2f} seconds"
+            )
 
         # sample a batch of data
         xb, yb = get_batch("train", hyperparameters)
@@ -270,6 +278,12 @@ def main():
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
+
+    total_training_time = time.time() - start_time  # Calculate total training time
+    print(f"Total training time: {total_training_time:.2f} seconds")  # Print total training time
+    epochs = (max_sequences / hyperparameters.batch_size) / hyperparameters.max_iters
+    time_per_epoch = total_training_time / epochs
+    print(f"Total epochs: {epochs:.2f}, Time per epoch: {time_per_epoch:.2f} seconds")
 
     # generate from the model
     context = torch.zeros((1, 1), dtype=torch.long, device=hyperparameters.device)
