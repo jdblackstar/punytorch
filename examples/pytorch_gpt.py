@@ -283,7 +283,7 @@ def main():
     print(f"Total training time: {total_training_time:.2f} seconds")  # Print total training time
     epochs = (max_sequences / hyperparameters.batch_size) / hyperparameters.max_iters
     time_per_epoch = total_training_time / epochs
-    print(f"Total epochs: {epochs:.2f}, Time per epoch: {time_per_epoch:.2f} seconds")
+    print(f"Total epochs: {epochs}, Time per epoch: {time_per_epoch} seconds")
 
     # generate from the model
     context = torch.zeros((1, 1), dtype=torch.long, device=hyperparameters.device)
