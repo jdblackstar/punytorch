@@ -10,7 +10,7 @@ from punytorch.ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, Tanh, TrueD
 class Tensor:
     def __init__(self, data, requires_grad=False):
         if isinstance(data, np.ndarray):
-            self.data = data
+            self.data = np.asarray(data)
         else:
             self.data = np.array(data)
         self.ndim = self.data.ndim
@@ -26,7 +26,22 @@ class Tensor:
         return self.data.shape
 
     def __str__(self):
-        return "tensor([" + ", ".join(f"{x:.1f}" for x in self.data.flatten()) + "])"
+        np.set_printoptions(precision=8, suppress=True, threshold=np.inf)
+        data_str = np.array2string(self.data, separator=", ")
+
+        # Reset numpy print options to default to avoid affecting global state
+        np.set_printoptions(
+            edgeitems=3,
+            infstr="inf",
+            linewidth=75,
+            nanstr="nan",
+            precision=8,
+            suppress=False,
+            threshold=1000,
+            formatter=None,
+        )
+
+        return f"tensor({data_str})"
 
     def __repr__(self):
         return self.__str__()
