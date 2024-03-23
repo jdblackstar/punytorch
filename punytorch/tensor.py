@@ -389,3 +389,36 @@ class Tensor:
 
             result.grad_fn = grad_fn
         return result
+
+    def sum(self: Tensor, axis=None, keepdims=False):
+        """
+        Compute the sum of a tensor along the specified axis.
+
+        Args:
+            axis (int or tuple of ints, optional): The axis or axes along which to compute the sum.
+                If None (default), the sum is computed over all elements of the tensor.
+            keepdims (bool, optional): If True, the reduced dimensions are retained with size 1.
+                Default is False.
+
+        Returns:
+            Tensor: A new tensor with the sum computed along the specified axis.
+        """
+
+        sum_data = np.sum(self.data, axis=axis, keepdims=keepdims)
+        result = Tensor(sum_data, requires_grad=self.requires_grad)
+        if self.requires_grad:
+
+            def grad_fn(grad):
+                if axis is None:
+                    return grad * np.ones_like(self.data)
+                else:
+                    shape = [1] * self.data.ndim
+                    if isinstance(axis, int):
+                        shape[axis] = self.data.shape[axis]
+                    else:
+                        for ax in axis:
+                            shape[ax] = self.data.shape[ax]
+                    return grad.reshape(shape) * np.ones_like(self.data)
+
+            result.context = Function(grad_fn, result)
+        return result
