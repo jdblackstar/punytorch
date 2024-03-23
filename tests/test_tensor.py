@@ -39,3 +39,13 @@ def test_backpropagation():
 
     assert np.allclose(y.grad.data, [2.0, 3.0, 4.0]), f"y.grad.data should be [2.0, 3.0, 4.0], got {y.grad.data}"
     assert np.allclose(x.grad.data, [4.0, 5.0, 6.0]), f"x.grad.data should be [4.0, 5.0, 6.0], got {x.grad.data}"
+
+
+@pytest.mark.gpt
+def test_sum_on_Tensor():
+    x = Tensor(np.random.rand(2, 3, 4))
+    print(f"x shape: {x.shape}, x value: {x}")
+    print(f"the data: {x.data}")
+    summed_x = x.sum(axis=-1)
+    # Assert that the shape of summed_x matches the expected shape after summing along the last dimension
+    assert summed_x.shape == x.shape[:-1], f"Expected shape {x.shape[:-1]}, but got {summed_x.shape}"
