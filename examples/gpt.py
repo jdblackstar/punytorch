@@ -1,7 +1,7 @@
 """
 gpt.py
 
-This example implements a GPT model for text generation using only punytorch.
+This example implements a GPT model for text generation using only punytorch (and numpy).
 
 Table of Contents:
 1. Imports
@@ -214,10 +214,6 @@ class MHA(nn.Module):
         # Call the static attention method
         x = MHA.attention(key, query, value, self.mask)
 
-        # Reshape or process the output from the attention method if necessary
-        # For example, if you need to concatenate heads or apply a final linear layer
-        # output = ...
-
         return x
 
     @staticmethod
@@ -226,9 +222,9 @@ class MHA(nn.Module):
         Computes the attention scores.
 
         Args:
-            k (Tensor): The key vectors.
-            q (Tensor): The query vectors.
-            v (Tensor): The value vectors.
+            key (Tensor): The key vectors.
+            query (Tensor): The query vectors.
+            value (Tensor): The value vectors.
             mask (Tensor): The mask tensor.
 
         Returns:
@@ -240,12 +236,16 @@ class MHA(nn.Module):
         batch_size, n_head, time_step, channels = key.shape
         scaling_factor = Tensor(channels**-0.5)
         attention_scores = (query @ key.transpose(-2, -1)) * scaling_factor
-        logger.debug(value.shape, attention_scores.shape)
         attention_scores = mask[:, :, :time_step, :time_step] + attention_scores
-        logger.debug(value.shape, attention_scores.shape)
         attention_scores = Softmax().forward(attention_scores, dim=-1)
         logger.debug(f"value shape: {value.shape}, attention_scores shape: {attention_scores.shape}")
-        x = value @ attention_scores
+
+        value = value.reshape(batch_size, n_head, time_step, channels, 1)
+        attention_scores = attention_scores.reshape(batch_size, n_head, time_step, 1, time_step)
+
+        matmul_result = value @ attention_scores
+        x = matmul_result.sum(axis=-1)
+
         if not isinstance(x, Tensor):
             raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
         return x
