@@ -29,22 +29,38 @@ from punytorch.tensor import Tensor
 # 2. Dataclasses for Model and Hyperparameters
 @dataclass
 class Hyperparameters:
-    batch_size: int
-    block_size: int
-    max_iters: int
-    eval_interval: int
-    learning_rate: float
-    device: str
-    eval_iters: int
-    num_embeds: int
-    num_heads: int
-    num_layers: int
-    dropout: float
+    # Model architecture parameters
+    vocab_size: int  # Size of the vocabulary
+    d_model: int  # Dimensionality of the token embeddings (equivalent to num_embeds)
+    num_layers: int  # Number of transformer blocks
+    num_heads: int  # Number of attention heads in each transformer block
+    d_ff: int  # Dimensionality of the feed-forward layer within each transformer block
+    dropout_rate: float  # Dropout rate applied to several components within the transformer blocks (equivalent to dropout)
+    max_position_embeddings: int  # Maximum sequence length that this model might ever be used with (could align with block_size)
+    eps: float  # Epsilon used for layer normalization modules
+
+    # Training-specific parameters
+    batch_size: int  # Number of sequences per training batch
+    block_size: int  # Length of the sequence to be processed (could align with max_position_embeddings)
+    max_iters: int  # Maximum number of training iterations
+    eval_interval: int  # Interval (in iterations) at which to evaluate the model
+    learning_rate: float  # Learning rate for the optimizer
+    device: str  # Training device ('cpu' or 'cuda')
+    eval_iters: int  # Number of iterations to perform during evaluation
+
+    # Additional training hyperparameters (suggested)
+    num_epochs: int = 1  # Total number of training epochs (default to 1 for flexibility)
+    warmup_steps: int = 0  # Number of warmup steps for learning rate scheduling (default to 0)
+    gradient_accumulation_steps: int = (
+        1  # Number of steps to accumulate gradients before performing a backward/update pass (default to 1)
+    )
+    max_grad_norm: float = 1.0  # Maximum gradient norm (for gradient clipping, default to 1.0)
+    save_interval: int = 1000  # Interval (in steps) at which to save model checkpoints (default to 1000)
 
 
 # 3. Helper Functions
 @Tensor.no_grad()
-def estimate_loss(model, train_data, val_data, hyperparameters):
+def estimate_loss(model, train_data, val_data, hparams: Hyperparameters):
     """
     Estimates the loss of the model over a number of iterations.
 
@@ -69,8 +85,8 @@ def estimate_loss(model, train_data, val_data, hyperparameters):
 
     for split in ["train", "val"]:
         losses = []
-        for k in range(hyperparameters.eval_iters):
-            data, targets = get_batch(split, train_data, val_data, hyperparameters)
+        for k in range(hparams.eval_iters):
+            data, targets = get_batch(split, train_data, val_data, hparams)
             logits = model(data)
 
             batch_size, time_step, channels = logits.shape
@@ -86,7 +102,7 @@ def estimate_loss(model, train_data, val_data, hyperparameters):
     return out
 
 
-def get_batch(split, train_data, val_data, hyperparameters):
+def get_batch(split, train_data, val_data, hparams: Hyperparameters):
     """
     Generates a batch of data for training or validation.
 
@@ -109,20 +125,20 @@ def get_batch(split, train_data, val_data, hyperparameters):
     len_data = len(data)
 
     # randomly select starting indices for the sequences
-    idx = np.random.randint(0, len_data - hyperparameters.block_size, hyperparameters.batch_size)
+    idx = np.random.randint(0, len_data - hparams.block_size, hparams.batch_size)
 
     # create input (x) and target (y) sequences based on block_size
     # target (y) sequence is offset by one (common practice in language modeling)
-    x = Tensor.stack([data[i : i + hyperparameters.block_size] for i in idx])
-    y = Tensor.stack([data[i + 1 : i + hyperparameters.block_size + 1] for i in idx])
+    x = Tensor.stack([data[i : i + hparams.block_size] for i in idx])
+    y = Tensor.stack([data[i + 1 : i + hparams.block_size + 1] for i in idx])
 
     # move the tensor to the specified device
-    x, y = x.to(hyperparameters.device), y.to(hyperparameters.device)
+    x, y = x.to(hparams.device), y.to(hparams.device)
     return x, y
 
 
 @Tensor.no_grad()
-def generate(model, idx, max_new_tokens, hyperparameters: Hyperparameters):
+def generate(model, idx, max_new_tokens, hparams: Hyperparameters):
     """
     Generates new tokens using the trained model.
 
@@ -139,9 +155,9 @@ def generate(model, idx, max_new_tokens, hyperparameters: Hyperparameters):
     Returns:
         Tensor: A tensor containing the indices of the generated tokens.
     """
-    idx = Tensor.zeros((1, hyperparameters.block_size)).to(hyperparameters.device).long()
+    idx = Tensor.zeros((1, hparams.block_size)).to(hparams.device).long()
     for i in range(max_new_tokens):
-        idx_cond = idx[:, -hyperparameters.block_size :]
+        idx_cond = idx[:, -hparams.block_size :]
         logits = model(idx_cond)
         logits = logits[:, -1, :]  # only take the last token, since we're predicting the "next" token
 
@@ -154,7 +170,7 @@ def generate(model, idx, max_new_tokens, hyperparameters: Hyperparameters):
 
     # return the model to training mode
     model.train()
-    return idx[:, hyperparameters.block_size :]
+    return idx[:, hparams.block_size :]
 
 
 # 4. Model Components (Attention (Single head and MHA), MLP, RMSNorm, Block, GPT)
@@ -170,13 +186,13 @@ class Head(nn.Module):
         hyperparameters (Hyperparameters): The hyperparameters of the model.
     """
 
-    def __init__(self, head_size, hyperparameters):
+    def __init__(self, hparams: Hyperparameters):
         super().__init__()
-        self.key = nn.Linear(hyperparameters.num_embeds, head_size)
-        self.query = nn.Linear(hyperparameters.num_embeds, head_size)
-        self.value = nn.Linear(hyperparameters.num_embeds, head_size)
-        self.register_buffer("tril", Tensor(np.tril(np.ones((hyperparameters.block_size, hyperparameters.block_size)))))
-        self.dropout = nn.Dropout(hyperparameters.dropout)  # this is placeholder, need to implement fully
+        self.key = nn.Linear(hparams.num_embeds, hparams.head_size)
+        self.query = nn.Linear(hparams.num_embeds, hparams.head_size)
+        self.value = nn.Linear(hparams.num_embeds, hparams.head_size)
+        self.register_buffer("tril", Tensor(np.tril(np.ones((hparams.block_size, hparams.block_size)))))
+        self.dropout = nn.Dropout(hparams.dropout)  # this is placeholder, need to implement fully
 
     def forward(self, x):
         """
@@ -227,11 +243,11 @@ class MultiHeadAttention(nn.Module):
         hyperparameters (Hyperparameters): The hyperparameters of the model.
     """
 
-    def __init__(self, num_heads, head_size, hyperparameters):
+    def __init__(self, hparams: Hyperparameters):
         super().__init__()
-        self.heads = nn.ModuleList([Head(head_size, hyperparameters) for _ in range(num_heads)])
-        self.proj = nn.Linear(hyperparameters.num_embeds, hyperparameters.num_embeds)
-        self.dropout = nn.Dropout(hyperparameters.dropout)
+        self.heads = nn.ModuleList([Head(hparams) for _ in range(hparams.num_heads)])
+        self.proj = nn.Linear(hparams.num_embeds, hparams.num_embeds)
+        self.dropout = nn.Dropout(hparams.dropout)
 
     def forward(self, x):
         """
@@ -346,7 +362,7 @@ class Block(nn.Module):
     layer normalization.
     """
 
-    def __init__(self, model_args: ModelArgs) -> None:
+    def __init__(self, hparams: Hyperparameters) -> None:
         """
         Initializes the Block module.
 
@@ -354,10 +370,10 @@ class Block(nn.Module):
             model_args (ModelArgs): The arguments for the model, including dimensions and sequence length.
         """
         super().__init__()
-        self.attn = MHA(model_args)
-        self.ffn = MLP(model_args.d_model, model_args.d_model)
-        self.l1 = RMSNorm(model_args.d_model, eps=model_args.esp)
-        self.l2 = RMSNorm(model_args.d_model, eps=model_args.esp)
+        self.attn = MultiHeadAttention(hparams)
+        self.ffn = MLP(hparams.d_model, hparams.d_model)
+        self.l1 = RMSNorm(hparams.d_model, eps=hparams.eps)
+        self.l2 = RMSNorm(hparams.d_model, eps=hparams.eps)
 
     def forward(self, x):
         """
@@ -380,7 +396,7 @@ class GPT(nn.Module):
     a list of transformer blocks, a normalization layer, and a projection layer.
     """
 
-    def __init__(self, model_args: ModelArgs, device: str):
+    def __init__(self, hparams: Hyperparameters) -> None:
         """
         Initializes the GPT model.
 
@@ -389,12 +405,12 @@ class GPT(nn.Module):
             device (str): The device to run the model on ("cpu" or "gpu").
         """
         super().__init__()
-        self.device = device
-        self.token_embedding = nn.Embedding(model_args.vocab_size, model_args.d_model)
-        self.position_embedding = nn.Embedding(model_args.seq_len, model_args.d_model)
-        self.layers = nn.ModuleList([Block(model_args) for _ in range(model_args.num_layers)])
-        self.norm = RMSNorm(model_args.d_model)
-        self.proj = nn.Linear(model_args.d_model, model_args.vocab_size)
+        self.device = hparams.device
+        self.token_embedding = nn.Embedding(hparams.vocab_size, hparams.d_model)
+        self.position_embedding = nn.Embedding(hparams.seq_len, hparams.d_model)
+        self.layers = nn.ModuleList([Block(hparams) for _ in range(hparams.num_layers)])
+        self.norm = RMSNorm(hparams.d_model)
+        self.proj = nn.Linear(hparams.d_model, hparams.vocab_size)
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -424,7 +440,7 @@ class GPT(nn.Module):
 
 # 5. Main Function
 def main():
-    # hyperparameters and modelargs
+    # hyperparameters for the model and training run
     hyperparameters = Hyperparameters(
         batch_size=64,
         block_size=128,
@@ -437,10 +453,6 @@ def main():
         num_heads=4,
         num_layers=2,
         dropout=0.2,
-    )
-
-    # fmt: off
-    model_args = ModelArgs(
         seq_len=1000,
         d_model=16,
         n_heads=2,
@@ -448,9 +460,8 @@ def main():
         num_layers=2,
         esp=1e-5,
     )
-    # fmt: on
 
-    model = GPT(model_args, hyperparameters.device).to(hyperparameters.device)
+    model = GPT(hyperparameters).to(hyperparameters.device)
     optimizer = Adam(model.parameters(), lr=hyperparameters.learning_rate)
     tokenizer = CharTokenizer(filepath="datasets/input.txt")
 
