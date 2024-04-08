@@ -122,7 +122,7 @@ def get_batch(split, train_data, val_data, hyperparameters):
 
 
 @Tensor.no_grad()
-def generate(model, idx, max_new_tokens, hyperparameters):
+def generate(model, idx, max_new_tokens, hyperparameters: Hyperparameters):
     """
     Generates new tokens using the trained model.
 
