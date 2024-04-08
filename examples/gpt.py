@@ -408,7 +408,7 @@ class GPT(nn.Module):
         self.device = hparams.device
         self.token_embedding = nn.Embedding(hparams.vocab_size, hparams.d_model)
         self.position_embedding = nn.Embedding(hparams.seq_len, hparams.d_model)
-        self.layers = nn.ModuleList([Block(hparams) for _ in range(hparams.num_layers)])
+        self.layers = nn.ModuleList([Block(hparams=hparams) for _ in range(hparams.num_layers)])
         self.norm = RMSNorm(hparams.d_model)
         self.proj = nn.Linear(hparams.d_model, hparams.vocab_size)
 
@@ -461,7 +461,7 @@ def main():
         esp=1e-5,
     )
 
-    model = GPT(hyperparameters).to(hyperparameters.device)
+    model = GPT(hparams=hyperparameters).to(hyperparameters.device)
     optimizer = Adam(model.parameters(), lr=hyperparameters.learning_rate)
     tokenizer = CharTokenizer(filepath="datasets/input.txt")
 
