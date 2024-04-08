@@ -42,16 +42,6 @@ class Hyperparameters:
     dropout: float
 
 
-@dataclass
-class ModelArgs:
-    seq_len: int
-    d_model: int
-    n_heads: int
-    vocab_size: int
-    num_layers: int
-    esp: float
-
-
 # 3. Helper Functions
 @Tensor.no_grad()
 def estimate_loss(model, train_data, val_data, hyperparameters):
