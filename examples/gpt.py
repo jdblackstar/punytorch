@@ -157,88 +157,105 @@ def generate(model, idx, max_new_tokens, hyperparameters: Hyperparameters):
     return idx[:, hyperparameters.block_size :]
 
 
-# 4. Model Components (MHA, MLP, RMSNorm, Block, GPT)
-class MHA(nn.Module):
-    def __init__(self, model_args: ModelArgs) -> None:
-        """
-        Initializes the Multi-Head Attention module.
+# 4. Model Components (Attention (Single head and MHA), MLP, RMSNorm, Block, GPT)
+class Head(nn.Module):
+    """
+    A single attention head.
 
-        Args:
-            model_args (ModelArgs): The arguments for the model, including dimensions and sequence length.
-        """
+    This class implements a single attention head, which is a key component of the transformer architecture.
+    It computes the attention scores, applies a mask, and performs the attention operation.
+
+    Args:
+        head_size (int): The size of the attention head.
+        hyperparameters (Hyperparameters): The hyperparameters of the model.
+    """
+
+    def __init__(self, head_size, hyperparameters):
         super().__init__()
-        self.key = nn.Linear(model_args.d_model, model_args.d_model)
-        self.query = nn.Linear(model_args.d_model, model_args.d_model)
-        self.value = nn.Linear(model_args.d_model, model_args.d_model)
-        self.proj = nn.Linear(model_args.d_model, model_args.d_model)
-        self.head_dim = model_args.d_model // model_args.n_heads
+        self.key = nn.Linear(hyperparameters.num_embeds, head_size)
+        self.query = nn.Linear(hyperparameters.num_embeds, head_size)
+        self.value = nn.Linear(hyperparameters.num_embeds, head_size)
+        self.register_buffer("tril", Tensor(np.tril(np.ones((hyperparameters.block_size, hyperparameters.block_size)))))
+        self.dropout = nn.Dropout(hyperparameters.dropout)  # this is placeholder, need to implement fully
 
-        self.n_heads = model_args.n_heads
-        mask = np.tril(np.ones((model_args.seq_len, model_args.seq_len)))
-        mask = np.triu(mask, k=1) * -np.inf
-        # Repeat the mask for each head
-        mask = np.repeat(mask[np.newaxis, np.newaxis, :, :], self.n_heads, axis=1)
-        self.register_buffer("mask", Tensor(mask).float())
-
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x):
         """
-        Defines the computation performed at every call.
+        Computes the forward pass of the attention head.
 
         Args:
-            x (Tensor): The input data.
+            x (Tensor): The input tensor of shape (batch_size, sequence_length, num_embeds).
 
         Returns:
-            Tensor: The output of the Multi-Head Attention layer.
+            Tensor: The output tensor after applying attention, of shape (batch_size, sequence_length, head_size).
         """
-        if not isinstance(x, Tensor):
-            raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
+        batch_size, sequence_length, channels = x.shape
 
-        batch_size, time_step, channels = x.shape
-        key = self.key(x)
-        query = self.query(x)
-        value = self.value(x)
-        key = key.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
-        query = query.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
-        value = value.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
+        # Compute key, query, and value projections
+        k = self.key(x)
+        q = self.query(x)
+        v = self.value(x)
 
-        # Call the static attention method
-        x = MHA.attention(key, query, value, self.mask)
+        # Compute attention scores
+        attention_scores = q @ k.transpose(-2, -1) * k.shape[-1] ** -0.5
 
-        return x
-
-    @staticmethod
-    def attention(key, query, value, mask) -> Tensor:
-        """
-        Computes the attention scores.
-
-        Args:
-            key (Tensor): The key vectors.
-            query (Tensor): The query vectors.
-            value (Tensor): The value vectors.
-            mask (Tensor): The mask tensor.
-
-        Returns:
-            Tensor: The output of the attention mechanism.
-        """
-        logger.debug(
-            f"key shape: {key.shape}, query shape: {query.shape}, value shape: {value.shape}, mask shape: {mask.shape}"
+        # Apply mask to attention scores
+        masked_attention_scores = attention_scores.masked_fill(
+            self.tril[:sequence_length, :sequence_length] == 0, float("-inf")
         )
-        batch_size, n_head, time_step, channels = key.shape
-        scaling_factor = Tensor(channels**-0.5)
-        attention_scores = (query @ key.transpose(-2, -1)) * scaling_factor
-        attention_scores = mask[:, :, :time_step, :time_step] + attention_scores
-        attention_scores = Softmax().forward(attention_scores, dim=-1)
-        logger.debug(f"value shape: {value.shape}, attention_scores shape: {attention_scores.shape}")
 
-        value = value.reshape(batch_size, n_head, time_step, channels, 1)
-        attention_scores = attention_scores.reshape(batch_size, n_head, time_step, 1, time_step)
+        # Compute attention probabilities
+        attention_probs = Softmax().forward(masked_attention_scores)
+        attention_probs = self.dropout(attention_probs)
 
-        matmul_result = value @ attention_scores
-        x = matmul_result.sum(axis=-1)
+        # Compute the attended values
+        v = self.value(x)
+        out = attention_probs @ v
 
-        if not isinstance(x, Tensor):
-            raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
-        return x
+        return out
+
+
+class MultiHeadAttention(nn.Module):
+    """
+    Multi-head attention module.
+
+    This module applies multiple attention heads in parallel and concatenates their outputs.
+    The concatenated output is then projected to the original embedding dimension.
+
+    Args:
+        num_heads (int): The number of attention heads.
+        head_size (int): The size of each attention head.
+        hyperparameters (Hyperparameters): The hyperparameters of the model.
+    """
+
+    def __init__(self, num_heads, head_size, hyperparameters):
+        super().__init__()
+        self.heads = nn.ModuleList([Head(head_size, hyperparameters) for _ in range(num_heads)])
+        self.proj = nn.Linear(hyperparameters.num_embeds, hyperparameters.num_embeds)
+        self.dropout = nn.Dropout(hyperparameters.dropout)
+
+    def forward(self, x):
+        """
+        Computes the forward pass of the multi-head attention module.
+
+        Args:
+            x (Tensor): The input tensor of shape (batch_size, sequence_length, num_embeds).
+
+        Returns:
+            Tensor: The output tensor after applying multi-head attention, of shape (batch_size, sequence_length, num_embeds).
+        """
+        # Apply attention heads in parallel
+        head_outputs = [h(x) for h in self.heads]
+
+        # Concatenate the outputs of all attention heads
+        concatenated = Tensor.cat(head_outputs, dim=-1)
+
+        # Project the concatenated output back to the original embedding dimension
+        out = self.proj(concatenated)
+
+        # Apply dropout regularization
+        out = self.dropout(out)
+
+        return out
 
 
 class MLP(nn.Module):
