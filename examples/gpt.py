@@ -170,13 +170,13 @@ class Head(nn.Module):
         hyperparameters (Hyperparameters): The hyperparameters of the model.
     """
 
-    def __init__(self, hparams: Hyperparameters):
+    def __init__(self, head_size, hparams: Hyperparameters):
         super().__init__()
-        self.key = nn.Linear(hparams.num_embeds, hparams.head_size)
-        self.query = nn.Linear(hparams.num_embeds, hparams.head_size)
-        self.value = nn.Linear(hparams.num_embeds, hparams.head_size)
+        self.key = nn.Linear(hparams.num_embeds, head_size)
+        self.query = nn.Linear(hparams.num_embeds, head_size)
+        self.value = nn.Linear(hparams.num_embeds, head_size)
         self.register_buffer("tril", Tensor(np.tril(np.ones((hparams.block_size, hparams.block_size)))))
-        self.dropout = nn.Dropout(hparams.dropout)  # this is placeholder, need to implement fully
+        self.dropout = nn.Dropout(hparams.dropout)
 
     def forward(self, x):
         """
@@ -227,9 +227,9 @@ class MultiHeadAttention(nn.Module):
         hyperparameters (Hyperparameters): The hyperparameters of the model.
     """
 
-    def __init__(self, hparams: Hyperparameters):
+    def __init__(self, head_size, hparams: Hyperparameters):
         super().__init__()
-        self.heads = nn.ModuleList([Head(hparams) for _ in range(hparams.num_heads)])
+        self.heads = nn.ModuleList([Head(head_size, hparams) for _ in range(hparams.num_heads)])
         self.proj = nn.Linear(hparams.num_embeds, hparams.num_embeds)
         self.dropout = nn.Dropout(hparams.dropout)
 
@@ -354,10 +354,11 @@ class Block(nn.Module):
             model_args (ModelArgs): The arguments for the model, including dimensions and sequence length.
         """
         super().__init__()
-        self.attn = MultiHeadAttention(hparams)
-        self.ffn = MLP(hparams.d_model, hparams.d_model)
-        self.l1 = RMSNorm(hparams.d_model, eps=hparams.eps)
-        self.l2 = RMSNorm(hparams.d_model, eps=hparams.eps)
+        head_size = hparams.num_embeds // hparams.num_heads
+        self.attn = MultiHeadAttention(head_size, hparams)
+        self.ffn = MLP(in_features=hparams.num_embeds, out_features=hparams.num_embeds)
+        self.l1 = RMSNorm(hparams.num_embeds, eps=hparams.dropout)
+        self.l2 = RMSNorm(hparams.num_embeds, eps=hparams.dropout)
 
     def forward(self, x):
         """
@@ -380,7 +381,7 @@ class GPT(nn.Module):
     a list of transformer blocks, a normalization layer, and a projection layer.
     """
 
-    def __init__(self, hparams: Hyperparameters) -> None:
+    def __init__(self, hparams: Hyperparameters, vocab_size) -> None:
         """
         Initializes the GPT model.
 
@@ -390,11 +391,19 @@ class GPT(nn.Module):
         """
         super().__init__()
         self.device = hparams.device
-        self.token_embedding = nn.Embedding(hparams.vocab_size, hparams.d_model)
-        self.position_embedding = nn.Embedding(hparams.seq_len, hparams.d_model)
+        self.token_embedding = nn.Embedding(vocab_size, hparams.num_embeds)
+        self.position_embedding = nn.Embedding(hparams.block_size, hparams.num_embeds)
         self.layers = nn.ModuleList([Block(hparams=hparams) for _ in range(hparams.num_layers)])
-        self.norm = RMSNorm(hparams.d_model)
-        self.proj = nn.Linear(hparams.d_model, hparams.vocab_size)
+        self.norm = RMSNorm(hparams.num_embeds)
+        self.proj = nn.Linear(hparams.num_embeds, vocab_size)
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, (nn.Linear, nn.Embedding)):
+            module.weight.data.normal_(mean=0.0, std=0.02)
+        if isinstance(module, nn.Linear) and module.bias is not None:
+            module.bias.data.zero_()
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -411,15 +420,38 @@ class GPT(nn.Module):
         B, T = x.shape
         token_embedding = self.token_embedding(x)
         position_embedding = self.position_embedding(Tensor(np.arange(T)).to(self.device))
-        x = token_embedding + position_embedding
+        x = token_embedding + position_embedding  # (B,T,C)
+        x = self.layers(x)  # (B,T,C)
+        x = self.norm(x)  # (B,T,C)
+        logits = self.lm_head(x)  # (B,T,vocab_size)
 
-        for layer in self.layers:
-            x = layer(x)
+        if targets is None:
+            loss = None
+        else:
+            B, T, C = logits.shape
+            logits = logits.view(B * T, C)
+            targets = targets.view(B * T)
+            loss = CrossEntropyLoss.forward(logits, targets)
 
-        x = self.norm(x)
-        logits = self.proj(x)
+        return logits, loss
 
-        return logits
+    def generate(self, idx, max_new_tokens, hparams: Hyperparameters):
+        # idx is (B, T) array of indices in the current context
+        for _ in range(max_new_tokens):
+            # crop idx to the last block_size tokens
+            idx_cond = idx[:, -hparams.block_size :]
+            # get the predictions
+            logits, loss = self(idx_cond)
+            # focus only on the last time step
+            logits = logits[:, -1, :]  # becomes (B, C)
+            # apply softmax to get probabilities
+            probs = Softmax.forward(logits, dim=-1)  # (B, C)
+            # sample from the distribution - don't have access to torch.multinomial, so we're making our own
+            idx_next = np.array([np.random.choice(len(probs[b]), 1, p=probs[b]) for b in range(len(probs))])  # (B, 1)
+            idx_next = Tensor(idx_next).to(probs.device)  # Convert to Tensor and move to the same device as probs
+            # append sampled index to the running sequence
+            idx = Tensor.cat((idx, idx_next), dim=1)  # (B, T+1)
+        return idx
 
 
 # 5. Main Function
@@ -427,32 +459,28 @@ def main():
     # hyperparameters for the model and training run
     hyperparameters = Hyperparameters(
         batch_size=64,
-        block_size=128,
+        block_size=256,
         max_iters=5000,
         eval_interval=500,
         learning_rate=3e-4,
         device="cpu",
-        eval_iters=100,
-        num_embeds=128 * 2,
-        num_heads=4,
-        num_layers=2,
+        eval_iters=200,
+        num_embeds=384,
+        num_heads=6,
+        num_layers=6,
         dropout=0.2,
-        seq_len=1000,
-        d_model=16,
-        n_heads=2,
-        vocab_size=1000,
-        num_layers=2,
-        esp=1e-5,
     )
 
-    model = GPT(hparams=hyperparameters).to(hyperparameters.device)
-    optimizer = Adam(model.parameters(), lr=hyperparameters.learning_rate)
     tokenizer = CharTokenizer(filepath="datasets/input.txt")
 
     data = Tensor(tokenizer.encode(tokenizer.text)).long()
     n = int(0.95 * len(data))
     train_data = data[:n]
     val_data = data[n:]
+    vocab_size = tokenizer.get_vocab_size()
+
+    model = GPT(hparams=hyperparameters, vocab_size=vocab_size).to(hyperparameters.device)
+    optimizer = Adam(model.parameters(), lr=hyperparameters.learning_rate)
 
     # type checks before moving on
     if not all(isinstance(x, Tensor) for x in [data, train_data, val_data]):
