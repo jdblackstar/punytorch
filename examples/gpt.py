@@ -423,7 +423,7 @@ class GPT(nn.Module):
         x = token_embedding + position_embedding  # (B,T,C)
         x = self.layers(x)  # (B,T,C)
         x = self.norm(x)  # (B,T,C)
-        logits = self.lm_head(x)  # (B,T,vocab_size)
+        logits = self.proj(x)  # (B,T,vocab_size)
 
         if targets is None:
             loss = None
