@@ -411,11 +411,11 @@ class GPT(nn.Module):
 
         Args:
             x (Tensor): The input data.
+            targets (Tensor, optional): The target values. If provided, the method will compute and return the loss. If not provided, the method will only return the logits. Defaults to None.
 
         Returns:
             Tensor: The output of the GPT model.
         """
-        if not isinstance(x, Tensor):
             raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
         B, T = x.shape
         token_embedding = self.token_embedding(x)
