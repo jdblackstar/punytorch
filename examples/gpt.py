@@ -405,7 +405,7 @@ class GPT(nn.Module):
         if isinstance(module, nn.Linear) and module.bias is not None:
             module.bias.data.zero_()
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, targets=None) -> Tensor:
         """
         Defines the computation performed at every call.
 
