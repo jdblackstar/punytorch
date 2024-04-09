@@ -29,33 +29,17 @@ from punytorch.tensor import Tensor
 # 2. Dataclasses for Model and Hyperparameters
 @dataclass
 class Hyperparameters:
-    # Model architecture parameters
-    vocab_size: int  # Size of the vocabulary
-    d_model: int  # Dimensionality of the token embeddings (equivalent to num_embeds)
-    num_layers: int  # Number of transformer blocks
-    num_heads: int  # Number of attention heads in each transformer block
-    d_ff: int  # Dimensionality of the feed-forward layer within each transformer block
-    dropout_rate: float  # Dropout rate applied to several components within the transformer blocks (equivalent to dropout)
-    max_position_embeddings: int  # Maximum sequence length that this model might ever be used with (could align with block_size)
-    eps: float  # Epsilon used for layer normalization modules
-
-    # Training-specific parameters
-    batch_size: int  # Number of sequences per training batch
-    block_size: int  # Length of the sequence to be processed (could align with max_position_embeddings)
-    max_iters: int  # Maximum number of training iterations
-    eval_interval: int  # Interval (in iterations) at which to evaluate the model
-    learning_rate: float  # Learning rate for the optimizer
-    device: str  # Training device ('cpu' or 'cuda')
-    eval_iters: int  # Number of iterations to perform during evaluation
-
-    # Additional training hyperparameters (suggested)
-    num_epochs: int = 1  # Total number of training epochs (default to 1 for flexibility)
-    warmup_steps: int = 0  # Number of warmup steps for learning rate scheduling (default to 0)
-    gradient_accumulation_steps: int = (
-        1  # Number of steps to accumulate gradients before performing a backward/update pass (default to 1)
-    )
-    max_grad_norm: float = 1.0  # Maximum gradient norm (for gradient clipping, default to 1.0)
-    save_interval: int = 1000  # Interval (in steps) at which to save model checkpoints (default to 1000)
+    batch_size: int
+    block_size: int
+    max_iters: int
+    eval_interval: int
+    learning_rate: float
+    device: str
+    eval_iters: int
+    num_embeds: int
+    num_heads: int
+    num_layers: int
+    dropout: float
 
 
 # 3. Helper Functions
