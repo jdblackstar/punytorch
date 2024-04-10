@@ -3,4 +3,4 @@ repos:
     rev: 23.12.1
     hooks:
       - id: black
-        args: ["."]
+        args: [".", "--line-length", "120"]
