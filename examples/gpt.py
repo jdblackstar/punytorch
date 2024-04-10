@@ -411,6 +411,8 @@ class GPT(nn.Module):
 
         Args:
             x (Tensor): The input data.
+            targets (Tensor, optional): The target values. If provided, the method will compute and return the loss.
+            If not provided, the method will only return the logits. Defaults to None.
 
         Returns:
             Tensor: The output of the GPT model.
@@ -436,6 +438,22 @@ class GPT(nn.Module):
         return logits, loss
 
     def generate(self, idx, max_new_tokens, hparams: Hyperparameters):
+        """
+        Generates text based on the provided context.
+
+        This function takes an initial context of indices and generates text by repeatedly predicting the next token
+        until the specified maximum number of new tokens is reached. The generation process involves sampling from the
+        probability distribution over the vocabulary for each new token.
+
+        Args:
+            idx (Tensor): The initial context represented as a tensor of token indices with shape (B, T), where B is
+                          the batch size and T is the sequence length of the context.
+            max_new_tokens (int): The maximum number of new tokens to generate.
+            hparams (Hyperparameters): The hyperparameters for the model, including block size.
+
+        Returns:
+            Tensor: The generated indices including the initial context and the new tokens, with shape (B, T + max_new_tokens).
+        """
         # idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
             # crop idx to the last block_size tokens
