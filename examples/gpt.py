@@ -411,7 +411,8 @@ class GPT(nn.Module):
 
         Args:
             x (Tensor): The input data.
-            targets (Tensor, optional): The target values. If provided, the method will compute and return the loss. If not provided, the method will only return the logits. Defaults to None.
+if not isinstance(x, Tensor):
+    raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
 
         Returns:
             Tensor: The output of the GPT model.
@@ -533,9 +534,6 @@ def main():
 
             pbar.update(1)
     context = Tensor.zeros((1, 1)).to(hyperparameters.device).long()
-    print(tokenizer.decode(generate(model, context, max_new_tokens=500)[0].tolist()))
-
-
 if __name__ == "__main__":
     logging.basicConfig(level="DEBUG")
     logger = logging.getLogger(__name__)
