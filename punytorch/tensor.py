@@ -109,6 +109,21 @@ class Tensor:
         else:
             return self.data < other
 
+    def masked_fill(self, mask, value):
+        """
+        Fills elements of this tensor with `value` where `mask` is True.
+
+        Args:
+            mask (Tensor): The boolean mask.
+            value (float): The value to fill in with.
+
+        Returns:
+            Tensor: A new tensor with filled values.
+        """
+        mask = self.ensure_tensor(mask)
+        result_data = np.where(mask.data, value, self.data)
+        return Tensor(result_data, requires_grad=self.requires_grad)
+
     @staticmethod
     def data_to_numpy(data):
         if isinstance(data, (int, float)):
