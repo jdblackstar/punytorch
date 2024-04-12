@@ -196,7 +196,9 @@ class Head(nn.Module):
         v = self.value(x)
 
         # Compute attention scores
-        attention_scores = q @ k.transpose(-2, -1) * k.shape[-1] ** -0.5
+        attention_scores = q @ k.transpose(-2, -1)
+        scale_factor = Tensor(k.shape[-1] ** -0.5)  # Wrap the scalar in a Tensor
+        attention_scores = attention_scores * scale_factor  # Ensure element-wise multiplication
 
         # Apply mask to attention scores
         masked_attention_scores = attention_scores.masked_fill(
@@ -209,7 +211,9 @@ class Head(nn.Module):
 
         # Compute the attended values
         v = self.value(x)
-        out = attention_probs @ v
+        logger.debug(f"v: {v.shape}, {type(v)}")
+        logger.debug(f"attention_probs: {attention_probs.shape}, {type(attention_probs)}")
+        out = attention_probs.data @ v.data
 
         return out
 
@@ -401,13 +405,16 @@ class GPT(nn.Module):
 
     def _init_weights(self, module):
         if isinstance(module, (nn.Linear, nn.Embedding)):
-            module.weight.data.normal_(mean=0.0, std=0.02)
+            # Assuming module.weight.data is a numpy array
+            mean = 0.0
+            std = 0.02
+            module.weight.data = np.random.normal(mean, std, module.weight.data.shape)
         if isinstance(module, nn.Linear) and module.bias is not None:
-            module.bias.data.zero_()
+            module.bias.data = np.zeros_like(module.bias.data)
 
     def forward(self, x: Tensor, targets=None) -> Tensor:
         """
-        Defines the computation performed at every call.
+        Overrides the base forward method in the nn.Module class to define the computation performed at every call.
 
         Args:
             x (Tensor): The input data.
@@ -422,18 +429,19 @@ class GPT(nn.Module):
         B, T = x.shape
         token_embedding = self.token_embedding(x)
         position_embedding = self.position_embedding(Tensor(np.arange(T)).to(self.device))
-        x = token_embedding + position_embedding  # (B,T,C)
-        x = self.layers(x)  # (B,T,C)
-        x = self.norm(x)  # (B,T,C)
-        logits = self.proj(x)  # (B,T,vocab_size)
+        x = token_embedding + position_embedding  # Combine token and position embeddings (B,T,C)
+        for layer in self.layers:
+            x = layer(x)  # Pass through each transformer block (B,T,C)
+        x = self.norm(x)  # Apply normalization (B,T,C)
+        logits = self.proj(x)  # Project to vocabulary size (B,T,vocab_size)
 
-        if targets is None:
-            loss = None
-        else:
+        if targets is not None:
             B, T, C = logits.shape
-            logits = logits.view(B * T, C)
-            targets = targets.view(B * T)
-            loss = CrossEntropyLoss.forward(logits, targets)
+            logits_flat = logits.view(B * T, C)
+            targets_flat = targets.view(B * T)
+            loss = CrossEntropyLoss.forward(logits_flat, targets_flat)
+        else:
+            loss = None
 
         return logits, loss
 
