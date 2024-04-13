@@ -225,7 +225,7 @@ class Tensor:
     BINARY OPS
     """
 
-    def _binary_op(self, other, op, op_class):
+    def _binary_op_tensor(self, other, op, op_class) -> Tensor:
         """
         Helper function to perform binary operations and handle gradients.
 
@@ -252,22 +252,22 @@ class Tensor:
             )
 
     def __add__(self, other):
-        return self._binary_op(other, np.add, Add)
+        return self._binary_op_tensor(other, np.add, Add)
 
     def __sub__(self, other):
-        return self._binary_op(other, np.subtract, Sub)
+        return self._binary_op_tensor(other, np.subtract, Sub)
 
     def __mul__(self, other):
-        return self._binary_op(other, np.multiply, Mul)
+        return self._binary_op_tensor(other, np.multiply, Mul)
 
     def __truediv__(self, other):
-        return self._binary_op(other, np.divide, TrueDiv)
+        return self._binary_op_tensor(other, np.divide, TrueDiv)
 
     def __mod__(self, other):
-        return self._binary_op(other, np.mod, Mod)
+        return self._binary_op_tensor(other, np.mod, Mod)
 
     def __pow__(self, other):
-        return self._binary_op(other, np.power, Pow)
+        return self._binary_op_tensor(other, np.power, Pow)
 
     def __matmul__(self, other):
         # __matmul__ requires special handling due to reshaping for vectors.

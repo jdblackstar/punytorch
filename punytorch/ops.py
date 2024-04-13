@@ -1,4 +1,6 @@
+from __future__ import annotations
 import numpy as np
+from punytorch.tensor import Tensor
 
 
 class Function:
@@ -20,30 +22,49 @@ class Function:
 
 
 class Operation:
+    """
+    Base class for all operations in the punytorch framework.
+
+    This class provides the basic structure for defining operations that can be applied to tensors.
+    Operations are callable objects that, when called, perform a forward computation and store
+    information necessary for the backward pass in the computational graph.
+
+    Attributes:
+        operands (tuple): A tuple of operands (tensors or other operations) that the operation acts upon.
+        inputs (tuple): A tuple of inputs provided to the operation during the forward pass.
+        outputs (any): The result of the forward computation. The type depends on the specific operation.
+    """
+
+    def __init__(self, *operands):
+        self.operands = operands
+
     def __call__(self, *args):
         self.inputs = args
         self.outputs = self.forward(*args)
         return self.outputs
 
     def forward(self, *args):
-        raise NotImplementedError
+        raise NotImplementedError("Forward method not implemented.")
 
     def backward(self, grad):
-        raise NotImplementedError
+        raise NotImplementedError("Backward method not implemented.")
 
 
 def ensure_numpy(x):
-    from punytorch.tensor import Tensor
-
-    return x.data if isinstance(x, Tensor) else np.array(x)
+    if not isinstance(x, np.ndarray):
+        raise TypeError("Expected a numpy array.")
 
 
 class Add(Operation):
-    def forward(self, x, y):
-        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
-        return np.add(self.x, self.y)
+    def __init__(self, x: np.ndarray | Tensor, y: np.ndarray | Tensor):
+        super().__init__()
+        self.x = x.data if isinstance(x, Tensor) else x
+        self.y = y.data if isinstance(y, Tensor) else y
 
-    def backward(self, grad):
+    def forward(self):
+        return self.x + self.y
+
+    def backward(self, grad: np.ndarray):
         # grad is assumed to be a NumPy array
         # The gradient of the sum is distributed equally to both operands
         # No need to change the shape of grad since addition is element-wise
@@ -51,19 +72,27 @@ class Add(Operation):
 
 
 class Sub(Operation):
-    def forward(self, x, y):
-        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
-        return np.subtract(self.x, self.y)
+    def __init__(self, x: np.ndarray | Tensor, y: np.ndarray | Tensor):
+        super().__init__()
+        self.x = x.data if isinstance(x, Tensor) else x
+        self.y = y.data if isinstance(y, Tensor) else y
 
-    def backward(self, grad):
+    def forward(self):
+        return self.x - self.y
+
+    def backward(self, grad: np.ndarray):
         # The gradient with respect to the first operand is 1
         # The gradient with respect to the second operand is -1
         return grad, -grad
 
 
 class Mul(Operation):
-    def forward(self, x, y):
-        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
+    def __init__(self, x: np.ndarray | Tensor, y: np.ndarray | Tensor):
+        super().__init__()
+        self.x = x.data if isinstance(x, Tensor) else x
+        self.y = y.data if isinstance(y, Tensor) else y
+
+    def forward(self):
         return np.multiply(self.x, self.y)
 
     def backward(self, grad):
@@ -72,14 +101,22 @@ class Mul(Operation):
 
 
 class TrueDiv(Operation):
-    def forward(self, x, y):
-        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
-        return np.divide(self.x, self.y)
+    def __init__(self, x: np.ndarray | Tensor, y: np.ndarray | Tensor):
+        super().__init__(x, y)  # Pass tensors to the superclass
+        # Ensure x and y are stored as numpy arrays for computation
+        self.x = x.data if isinstance(x, Tensor) else x
+        self.y = y.data if isinstance(y, Tensor) else y
+
+    def forward(self):
+        # Perform the division operation
+        return self.x / self.y
 
     def backward(self, grad):
         # The gradient with respect to x is 1/y
+        grad_x = grad / self.y
         # The gradient with respect to y is -x/y^2
-        return grad / self.y, -self.x * grad / (self.y**2)
+        grad_y = -self.x * grad / (self.y**2)
+        return grad_x, grad_y
 
 
 class Mod(Operation):
@@ -92,8 +129,12 @@ class Mod(Operation):
     for all use cases.
     """
 
-    def forward(self, x, y):
-        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
+    def __init__(self, x: np.ndarray | Tensor, y: np.ndarray | Tensor):
+        super().__init__()
+        self.x = x.data if isinstance(x, Tensor) else x
+        self.y = y.data if isinstance(y, Tensor) else y
+
+    def forward(self):
         return np.mod(self.x, self.y)
 
     def backward(self, grad):
