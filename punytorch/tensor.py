@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import numpy as np
+from typing import Any, Callable, Type, Union
 
 from punytorch.activations import ReLU, Sigmoid, Softmax
 from punytorch.mlops import Reshape
-from punytorch.ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, Tanh, TrueDiv
+from punytorch.ops import Operation, Add, Function, MatMul, Mod, Mul, Pow, Sub, Tanh, TrueDiv
 
 
 class Tensor:
@@ -225,51 +226,54 @@ class Tensor:
     BINARY OPS
     """
 
-    def _binary_op_tensor(self, other, op, op_class) -> Tensor:
+    def _binary_op_tensor(self, other: Union[Tensor, float, int], op_class: Type[Operation]) -> Tensor:
         """
         Helper function to perform binary operations and handle gradients.
 
         Args:
             other (Tensor, float, int): The right operand.
-            op (function): The operation to perform (e.g., np.add, np.subtract).
             op_class (class): The class representing the operation for gradient computation.
 
         Returns:
             Tensor: The result of the binary operation.
         """
-        if isinstance(other, (int, float)):
-            result_data = op(self.data, other)
-            return Tensor(result_data, requires_grad=self.requires_grad)
-        elif isinstance(other, Tensor):
-            result_data = op(self.data, other.data)
+        binary_operations = [Add, Sub, Mul, TrueDiv, Mod, Pow, MatMul]
+        if op_class not in binary_operations:
+            raise ValueError(f"Invalid operation class: {op_class}. Must be one of a binary operation.")
+        if isinstance(other, (float, int, np.ndarray)):
+            other = Tensor(other)
+        if isinstance(other, Tensor):
+            operation = op_class(self, other)
+            result_data = operation.forward()
             result = Tensor(result_data, requires_grad=self.requires_grad or other.requires_grad)
             if result.requires_grad:
-                result.context = op_class(self, other)
+                # Set the context for gradient computation
+                result.context = operation
             return result
         else:
             raise TypeError(
-                f"Unsupported operand type(s) for {op.__name__}: '{type(self).__name__}' and '{type(other).__name__}'"
+                f"Unsupported operand type(s) for {op_class.__name__}: '{type(self).__name__}' and '{type(other).__name__}'"
             )
 
-    def __add__(self, other):
-        return self._binary_op_tensor(other, np.add, Add)
+    def __add__(self, other: Union[Tensor, float, int]) -> Tensor:
+        return self._binary_op_tensor(other, Add)
 
-    def __sub__(self, other):
-        return self._binary_op_tensor(other, np.subtract, Sub)
+    def __sub__(self, other: Union[Tensor, float, int]) -> Tensor:
+        return self._binary_op_tensor(other, Sub)
 
-    def __mul__(self, other):
-        return self._binary_op_tensor(other, np.multiply, Mul)
+    def __mul__(self, other: Union[Tensor, float, int]) -> Tensor:
+        return self._binary_op_tensor(other, Mul)
 
-    def __truediv__(self, other):
-        return self._binary_op_tensor(other, np.divide, TrueDiv)
+    def __truediv__(self, other: Union[Tensor, float, int]) -> Tensor:
+        return self._binary_op_tensor(other, TrueDiv)
 
-    def __mod__(self, other):
-        return self._binary_op_tensor(other, np.mod, Mod)
+    def __mod__(self, other: Union[Tensor, float, int]) -> Tensor:
+        return self._binary_op_tensor(other, Mod)
 
-    def __pow__(self, other):
-        return self._binary_op_tensor(other, np.power, Pow)
+    def __pow__(self, other: Union[Tensor, float, int]) -> Tensor:
+        return self._binary_op_tensor(other, Pow)
 
-    def __matmul__(self, other):
+    def __matmul__(self, other: Union[Tensor, float, int]) -> Tensor:
         # __matmul__ requires special handling due to reshaping for vectors.
         if not isinstance(other, Tensor):
             raise TypeError(f"Unsupported operand type(s) for @: '{type(self).__name__}' and '{type(other).__name__}'")
@@ -284,8 +288,7 @@ class Tensor:
         else:
             other_data = other.data
 
-        result_data = np.matmul(self_data, other_data)
-        return Tensor(result_data, requires_grad=self.requires_grad or other.requires_grad)
+        return self._binary_op_tensor(other, MatMul)
 
     """
     UNARY OPS
