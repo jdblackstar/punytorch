@@ -17,6 +17,10 @@ class ReLU:
         Returns:
             numpy.ndarray: The output after applying the ReLU function, which is max(0, x).
         """
+        # add check to ensure x is a numpy array
+        if hasattr(x, "data"):
+            x = x.data
+
         return np.maximum(0, x)
 
     @staticmethod
