@@ -41,6 +41,9 @@ class Operation:
         self.outputs = self.forward(*args)
         return self.outputs
 
+    def extract_data(self, x):
+        return x.data if hasattr(x, "data") else x
+
     def forward(self, *args):
         raise NotImplementedError("Forward method not implemented.")
 
@@ -56,8 +59,8 @@ def ensure_numpy(x):
 class Add(Operation):
     def __init__(self, x, y):
         super().__init__()
-        self.x = x
-        self.y = y
+        self.x = self.extract_data(x)
+        self.y = self.extract_data(y)
 
     def forward(self):
         return np.add(self.x, self.y)
@@ -69,8 +72,8 @@ class Add(Operation):
 class Sub(Operation):
     def __init__(self, x, y):
         super().__init__()
-        self.x = x
-        self.y = y
+        self.x = self.extract_data(x)
+        self.y = self.extract_data(y)
 
     def forward(self):
         return np.subtract(self.x, self.y)
@@ -84,8 +87,8 @@ class Sub(Operation):
 class Mul(Operation):
     def __init__(self, x, y):
         super().__init__()
-        self.x = x
-        self.y = y
+        self.x = self.extract_data(x)
+        self.y = self.extract_data(y)
 
     def forward(self):
         return np.multiply(self.x, self.y)
@@ -98,8 +101,8 @@ class Mul(Operation):
 class TrueDiv(Operation):
     def __init__(self, x, y):
         super().__init__()
-        self.x = x
-        self.y = y
+        self.x = self.extract_data(x)
+        self.y = self.extract_data(y)
 
     def forward(self):
         return np.true_divide(self.x, self.y)
@@ -124,8 +127,8 @@ class Mod(Operation):
 
     def __init__(self, x, y):
         super().__init__()
-        self.x = x
-        self.y = y
+        self.x = self.extract_data(x)
+        self.y = self.extract_data(y)
 
     def forward(self):
         return np.mod(self.x, self.y)
@@ -141,8 +144,8 @@ class Mod(Operation):
 class Pow(Operation):
     def __init__(self, x, y):
         super().__init__()
-        self.x = x
-        self.y = y
+        self.x = self.extract_data(x)
+        self.y = self.extract_data(y)
 
     def forward(self):
         return np.power(self.x, self.y)
@@ -158,8 +161,8 @@ class Pow(Operation):
 class MatMul(Operation):
     def __init__(self, x, y):
         super().__init__()
-        self.x = x
-        self.y = y
+        self.x = self.extract_data(x)
+        self.y = self.extract_data(y)
 
     def forward(self):
         return np.matmul(self.x, self.y)
@@ -173,7 +176,7 @@ class MatMul(Operation):
 class Tanh(Operation):
     def __init__(self, x):
         super().__init__()
-        self.x = x
+        self.x = self.extract_data(x)
 
     def forward(self):
         return np.tanh(self.x)
