@@ -1,6 +1,4 @@
-from __future__ import annotations
 import numpy as np
-from punytorch.tensor import Tensor
 
 
 class Function:
@@ -56,41 +54,38 @@ def ensure_numpy(x):
 
 
 class Add(Operation):
-    def __init__(self, x: np.ndarray | Tensor, y: np.ndarray | Tensor):
+    def __init__(self, x, y):
         super().__init__()
-        self.x = x.data if isinstance(x, Tensor) else x
-        self.y = y.data if isinstance(y, Tensor) else y
+        self.x = x
+        self.y = y
 
     def forward(self):
-        return self.x + self.y
+        return np.add(self.x, self.y)
 
-    def backward(self, grad: np.ndarray):
-        # grad is assumed to be a NumPy array
-        # The gradient of the sum is distributed equally to both operands
-        # No need to change the shape of grad since addition is element-wise
+    def backward(self, grad):
         return grad, grad
 
 
 class Sub(Operation):
-    def __init__(self, x: np.ndarray | Tensor, y: np.ndarray | Tensor):
+    def __init__(self, x, y):
         super().__init__()
-        self.x = x.data if isinstance(x, Tensor) else x
-        self.y = y.data if isinstance(y, Tensor) else y
+        self.x = x
+        self.y = y
 
     def forward(self):
-        return self.x - self.y
+        return np.subtract(self.x, self.y)
 
-    def backward(self, grad: np.ndarray):
+    def backward(self, grad):
         # The gradient with respect to the first operand is 1
         # The gradient with respect to the second operand is -1
         return grad, -grad
 
 
 class Mul(Operation):
-    def __init__(self, x: np.ndarray | Tensor, y: np.ndarray | Tensor):
+    def __init__(self, x, y):
         super().__init__()
-        self.x = x.data if isinstance(x, Tensor) else x
-        self.y = y.data if isinstance(y, Tensor) else y
+        self.x = x
+        self.y = y
 
     def forward(self):
         return np.multiply(self.x, self.y)
@@ -101,15 +96,13 @@ class Mul(Operation):
 
 
 class TrueDiv(Operation):
-    def __init__(self, x: np.ndarray | Tensor, y: np.ndarray | Tensor):
-        super().__init__(x, y)  # Pass tensors to the superclass
-        # Ensure x and y are stored as numpy arrays for computation
-        self.x = x.data if isinstance(x, Tensor) else x
-        self.y = y.data if isinstance(y, Tensor) else y
+    def __init__(self, x, y):
+        super().__init__()
+        self.x = x
+        self.y = y
 
     def forward(self):
-        # Perform the division operation
-        return self.x / self.y
+        return np.true_divide(self.x, self.y)
 
     def backward(self, grad):
         # The gradient with respect to x is 1/y
@@ -129,10 +122,10 @@ class Mod(Operation):
     for all use cases.
     """
 
-    def __init__(self, x: np.ndarray | Tensor, y: np.ndarray | Tensor):
+    def __init__(self, x, y):
         super().__init__()
-        self.x = x.data if isinstance(x, Tensor) else x
-        self.y = y.data if isinstance(y, Tensor) else y
+        self.x = x
+        self.y = y
 
     def forward(self):
         return np.mod(self.x, self.y)
@@ -146,8 +139,12 @@ class Mod(Operation):
 
 
 class Pow(Operation):
-    def forward(self, x, y):
-        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
+    def __init__(self, x, y):
+        super().__init__()
+        self.x = x
+        self.y = y
+
+    def forward(self):
         return np.power(self.x, self.y)
 
     def backward(self, grad):
@@ -159,20 +156,29 @@ class Pow(Operation):
 
 
 class MatMul(Operation):
-    def forward(self, x, y):
-        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
+    def __init__(self, x, y):
+        super().__init__()
+        self.x = x
+        self.y = y
+
+    def forward(self):
         return np.matmul(self.x, self.y)
 
     def backward(self, grad):
-        # If Z = X @ Y, then d(Z)/dX = grad @ Y^T and d(Z)/dY = X^T @ grad
+        # The gradient of Z = X @ Y with respect to X is grad @ Y^T
+        # The gradient of Z = X @ Y with respect to Y is X^T @ grad
         return np.dot(grad, self.y.T), np.dot(self.x.T, grad)
 
 
 class Tanh(Operation):
-    def forward(self, x):
-        self.x = ensure_numpy(x)
+    def __init__(self, x):
+        super().__init__()
+        self.x = x
+
+    def forward(self):
         return np.tanh(self.x)
 
     def backward(self, grad):
+        # The gradient of tanh(x) with respect to x is 1 - tanh(x)^2
         tanh_x = np.tanh(self.x)
         return (1 - np.square(tanh_x)) * grad
