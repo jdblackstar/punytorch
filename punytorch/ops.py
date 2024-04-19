@@ -16,28 +16,34 @@ class Function:
         Returns:
             The result of applying the function.
         """
-        return self.forward(*args)
+        return self.op(*args)
 
 
 class Operation:
+    def __call__(self, *args):
+        self.inputs = args
+        self.outputs = self.forward(*args)
+        return self.outputs
+
     def forward(self, *args):
         raise NotImplementedError
 
-    def backward(self, context, grad):
+    def backward(self, grad):
         raise NotImplementedError
 
 
+def ensure_numpy(x):
+    from punytorch.tensor import Tensor
+
+    return x.data if isinstance(x, Tensor) else np.array(x)
+
+
 class Add(Operation):
-    @staticmethod
-    def forward(x, y):
-        from punytorch.tensor import Tensor
+    def forward(self, x, y):
+        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
+        return np.add(self.x, self.y)
 
-        x_data = x.data if isinstance(x, Tensor) else np.array(x)
-        y_data = y.data if isinstance(y, Tensor) else np.array(y)
-        return np.add(x_data, y_data)
-
-    @staticmethod
-    def backward(context, grad):
+    def backward(self, grad):
         # grad is assumed to be a NumPy array
         # The gradient of the sum is distributed equally to both operands
         # No need to change the shape of grad since addition is element-wise
@@ -45,58 +51,35 @@ class Add(Operation):
 
 
 class Sub(Operation):
-    @staticmethod
-    def forward(x, y):
-        from punytorch.tensor import Tensor
+    def forward(self, x, y):
+        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
+        return np.subtract(self.x, self.y)
 
-        # Ensure that x and y are NumPy arrays
-        x_data = x.data if isinstance(x, Tensor) else np.array(x)
-        y_data = y.data if isinstance(y, Tensor) else np.array(y)
-        # Use NumPy's subtraction
-        return np.subtract(x_data, y_data)
-
-    @staticmethod
-    def backward(context, grad):
+    def backward(self, grad):
         # The gradient with respect to the first operand is 1
         # The gradient with respect to the second operand is -1
         return grad, -grad
 
 
 class Mul(Operation):
-    @staticmethod
-    def forward(x, y):
-        from punytorch.tensor import Tensor
+    def forward(self, x, y):
+        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
+        return np.multiply(self.x, self.y)
 
-        # Ensure that x and y are NumPy arrays
-        x_data = x.data if isinstance(x, Tensor) else np.array(x)
-        y_data = y.data if isinstance(y, Tensor) else np.array(y)
-        # Use NumPy's multiplication
-        return np.multiply(x_data, y_data)
-
-    @staticmethod
-    def backward(context, grad):
-        x, y = context.args
+    def backward(self, grad):
         # The gradient with respect to x is y, and vice versa
-        return grad * y.data, grad * x.data
+        return grad * self.y, grad * self.x
 
 
 class TrueDiv(Operation):
-    @staticmethod
-    def forward(x, y):
-        from punytorch.tensor import Tensor
+    def forward(self, x, y):
+        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
+        return np.divide(self.x, self.y)
 
-        # Ensure that x and y are NumPy arrays
-        x_data = x.data if isinstance(x, Tensor) else np.array(x)
-        y_data = y.data if isinstance(y, Tensor) else np.array(y)
-        # Use NumPy's true division
-        return np.divide(x_data, y_data)
-
-    @staticmethod
-    def backward(context, grad):
-        x, y = context.args
+    def backward(self, grad):
         # The gradient with respect to x is 1/y
         # The gradient with respect to y is -x/y^2
-        return grad.data / y.data, -x.data * grad.data / (y.data**2)
+        return grad / self.y, -self.x * grad / (self.y**2)
 
 
 class Mod(Operation):
@@ -109,82 +92,46 @@ class Mod(Operation):
     for all use cases.
     """
 
-    @staticmethod
-    def forward(x, y):
-        from punytorch.tensor import Tensor
+    def forward(self, x, y):
+        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
+        return np.mod(self.x, self.y)
 
-        # Ensure that x and y are NumPy arrays
-        x_data = x.data if isinstance(x, Tensor) else np.array(x)
-        y_data = y.data if isinstance(y, Tensor) else np.array(y)
-        # Use NumPy's mod
-        return np.mod(x_data, y_data)
-
-    @staticmethod
-    def backward(context, grad):
-        x, y = context.args
+    def backward(self, grad):
         # The gradient of x % y with respect to x is 1, and with respect to y is 0
         # Check if all elements in `y.data` are integers and raise a ValueError if they're not
-        if not np.all(y.data.astype(int) == y.data):
+        if not np.all(self.y.astype(int) == self.y):
             raise ValueError("The derivative with respect to `y` is undefined for non-integer values.")
-        return grad, np.zeros_like(y.data)
+        return grad, np.zeros_like(self.y)
 
 
 class Pow(Operation):
-    @staticmethod
-    def forward(x, y):
-        from punytorch.tensor import Tensor
+    def forward(self, x, y):
+        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
+        return np.power(self.x, self.y)
 
-        # Ensure that x and y are NumPy arrays
-        x_data = x.data if isinstance(x, Tensor) else np.array(x)
-        y_data = y.data if isinstance(y, Tensor) else np.array(y)
-        # Use NumPy's power function
-        return np.power(x_data, y_data)
-
-    @staticmethod
-    def backward(context, grad):
-        x, y = context.args
+    def backward(self, grad):
         # The gradient with respect to x is y * x^(y - 1)
         # The gradient with respect to y is x^y * log(x)
-        grad_x = grad * y.data * np.power(x.data, y.data - 1)
-        grad_y = grad * np.power(x.data, y.data) * np.log(x.data)
+        grad_x = grad * self.y * np.power(self.x, self.y - 1)
+        grad_y = grad * np.power(self.x, self.y) * np.log(self.x)
         return grad_x, grad_y
 
 
 class MatMul(Operation):
-    @staticmethod
-    def forward(x, y):
-        from punytorch.tensor import Tensor
+    def forward(self, x, y):
+        self.x, self.y = ensure_numpy(x), ensure_numpy(y)
+        return np.matmul(self.x, self.y)
 
-        # Ensure that x and y are NumPy arrays
-        x_data = x.data if isinstance(x, Tensor) else np.array(x)
-        y_data = y.data if isinstance(y, Tensor) else np.array(y)
-        # Use NumPy's matmul
-        return np.matmul(x_data, y_data)
-
-    @staticmethod
-    def backward(context, grad):
-        x, y = context.args
+    def backward(self, grad):
         # If Z = X @ Y, then d(Z)/dX = grad @ Y^T and d(Z)/dY = X^T @ grad
-        return grad.data @ np.transpose(y.data), np.transpose(x.data) @ grad.data
+        return np.dot(grad, self.y.T), np.dot(self.x.T, grad)
 
 
 class Tanh(Operation):
-    @staticmethod
-    def forward(x):
-        from punytorch.tensor import Tensor
+    def forward(self, x):
+        self.x = ensure_numpy(x)
+        return np.tanh(self.x)
 
-        # Ensure that x is a NumPy array
-        x_data = x.data if isinstance(x, Tensor) else np.array(x)
-        # Use NumPy's tanh
-        return np.tanh(x_data)
-
-    @staticmethod
-    def backward(context, grad):
-        from punytorch.tensor import Tensor
-
-        x = context.args[0]
-        # The gradient of tanh is (1 - tanh^2(x))
-        x_data = x.data if isinstance(x, Tensor) else np.array(x)
-        tanh_x_data = np.tanh(x_data)
-        grad_tanh = (1 - np.square(tanh_x_data)) * grad
-        return grad_tanh
+    def backward(self, grad):
+        tanh_x = np.tanh(self.x)
+        return (1 - np.square(tanh_x)) * grad

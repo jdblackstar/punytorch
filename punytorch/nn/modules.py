@@ -48,6 +48,20 @@ class Module:
                     params.extend(module.parameters())
         return list(set(params))
 
+    def apply(self, fn):
+        for module in self.children():
+            module.apply(fn)
+        fn(self)
+        return self
+
+    def children(self):
+        """
+        Returns an iterator over immediate children modules.
+        """
+        for name, module in self.__dict__.items():
+            if isinstance(module, Module):
+                yield module
+
     def state_dict(self):
         """
         Returns a dictionary containing a whole state of the module.

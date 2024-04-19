@@ -109,6 +109,21 @@ class Tensor:
         else:
             return self.data < other
 
+    def masked_fill(self, mask, value):
+        """
+        Fills elements of this tensor with `value` where `mask` is True.
+
+        Args:
+            mask (Tensor): The boolean mask.
+            value (float): The value to fill in with.
+
+        Returns:
+            Tensor: A new tensor with filled values.
+        """
+        mask = self.ensure_tensor(mask)
+        result_data = np.where(mask.data, value, self.data)
+        return Tensor(result_data, requires_grad=self.requires_grad)
+
     @staticmethod
     def data_to_numpy(data):
         if isinstance(data, (int, float)):
@@ -210,76 +225,67 @@ class Tensor:
     BINARY OPS
     """
 
+    def _binary_op(self, other, op, op_class):
+        """
+        Helper function to perform binary operations and handle gradients.
+
+        Args:
+            other (Tensor, float, int): The right operand.
+            op (function): The operation to perform (e.g., np.add, np.subtract).
+            op_class (class): The class representing the operation for gradient computation.
+
+        Returns:
+            Tensor: The result of the binary operation.
+        """
+        if isinstance(other, (int, float)):
+            result_data = op(self.data, other)
+            return Tensor(result_data, requires_grad=self.requires_grad)
+        elif isinstance(other, Tensor):
+            result_data = op(self.data, other.data)
+            result = Tensor(result_data, requires_grad=self.requires_grad or other.requires_grad)
+            if result.requires_grad:
+                result.context = op_class(self, other)
+            return result
+        else:
+            raise TypeError(
+                f"Unsupported operand type(s) for {op.__name__}: '{type(self).__name__}' and '{type(other).__name__}'"
+            )
+
     def __add__(self, other):
-        result = Tensor(
-            Add.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
-        )
-        if result.requires_grad:
-            result.context = Function(Add, self, other)
-        return result
+        return self._binary_op(other, np.add, Add)
 
     def __sub__(self, other):
-        result = Tensor(
-            Sub.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
-        )
-        if result.requires_grad:
-            result.context = Function(Sub, self, other)
-        return result
+        return self._binary_op(other, np.subtract, Sub)
 
     def __mul__(self, other):
-        if isinstance(other, (int, float)):
-            return Tensor(self.data * other, requires_grad=self.requires_grad)
-        else:
-            result = Tensor(
-                Mul.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
-            )
-            if result.requires_grad:
-                result.context = Function(Mul, self, other)
-            return result
+        return self._binary_op(other, np.multiply, Mul)
 
     def __truediv__(self, other):
-        if isinstance(other, (int, float)):
-            return Tensor(self.data // other, requires_grad=self.requires_grad)
-        else:
-            result = Tensor(
-                TrueDiv.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
-            )
-            if result.requires_grad:
-                result.context = Function(TrueDiv, self, other)
-            return result
+        return self._binary_op(other, np.divide, TrueDiv)
 
     def __mod__(self, other):
-        result = Tensor(
-            Mod.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
-        )
-        if result.requires_grad:
-            result.context = Function(Mod, self, other)
-        return result
+        return self._binary_op(other, np.mod, Mod)
 
     def __pow__(self, other):
-        result = Tensor(
-            Pow.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
-        )
-        if result.requires_grad:
-            result.context = Function(Pow, self, other)
-        return result
+        return self._binary_op(other, np.power, Pow)
 
     def __matmul__(self, other):
-        if isinstance(other, (int, float)):
-            return Tensor(self.data @ other, requires_grad=self.requires_grad)
-        else:
-            result = Tensor(
-                MatMul.forward(self, other), requires_grad=self.requires_grad or getattr(other, "requires_grad", False)
-            )
-            if result.requires_grad:
-                result.context = Function(MatMul, self, other)
-            return result
+        # __matmul__ requires special handling due to reshaping for vectors.
+        if not isinstance(other, Tensor):
+            raise TypeError(f"Unsupported operand type(s) for @: '{type(self).__name__}' and '{type(other).__name__}'")
 
-    def __tanh__(self):
-        result = Tensor(Tanh.forward(self), requires_grad=self.requires_grad)
-        if result.requires_grad:
-            result.context = Function(Tanh, self)
-        return result
+        if self.data.ndim == 1:
+            self_data = self.data.reshape(1, -1)
+        else:
+            self_data = self.data
+
+        if other.data.ndim == 1:
+            other_data = other.data.reshape(-1, 1)
+        else:
+            other_data = other.data
+
+        result_data = np.matmul(self_data, other_data)
+        return Tensor(result_data, requires_grad=self.requires_grad or other.requires_grad)
 
     """
     UNARY OPS

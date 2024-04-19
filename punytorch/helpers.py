@@ -59,3 +59,6 @@ class CharTokenizer:
 
     def decode(self, encoded_chars):
         return "".join([self.int_to_char[i] for i in encoded_chars])
+
+    def get_vocab_size(self):
+        return self.vocab_size

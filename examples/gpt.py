@@ -42,19 +42,9 @@ class Hyperparameters:
     dropout: float
 
 
-@dataclass
-class ModelArgs:
-    seq_len: int
-    d_model: int
-    n_heads: int
-    vocab_size: int
-    num_layers: int
-    esp: float
-
-
 # 3. Helper Functions
 @Tensor.no_grad()
-def estimate_loss(model, train_data, val_data, hyperparameters):
+def estimate_loss(model, train_data, val_data, hparams: Hyperparameters):
     """
     Estimates the loss of the model over a number of iterations.
 
@@ -79,8 +69,8 @@ def estimate_loss(model, train_data, val_data, hyperparameters):
 
     for split in ["train", "val"]:
         losses = []
-        for k in range(hyperparameters.eval_iters):
-            data, targets = get_batch(split, train_data, val_data, hyperparameters)
+        for k in range(hparams.eval_iters):
+            data, targets = get_batch(split, train_data, val_data, hparams)
             logits = model(data)
 
             batch_size, time_step, channels = logits.shape
@@ -96,7 +86,7 @@ def estimate_loss(model, train_data, val_data, hyperparameters):
     return out
 
 
-def get_batch(split, train_data, val_data, hyperparameters):
+def get_batch(split, train_data, val_data, hparams: Hyperparameters):
     """
     Generates a batch of data for training or validation.
 
@@ -119,20 +109,20 @@ def get_batch(split, train_data, val_data, hyperparameters):
     len_data = len(data)
 
     # randomly select starting indices for the sequences
-    idx = np.random.randint(0, len_data - hyperparameters.block_size, hyperparameters.batch_size)
+    idx = np.random.randint(0, len_data - hparams.block_size, hparams.batch_size)
 
     # create input (x) and target (y) sequences based on block_size
     # target (y) sequence is offset by one (common practice in language modeling)
-    x = Tensor.stack([data[i : i + hyperparameters.block_size] for i in idx])
-    y = Tensor.stack([data[i + 1 : i + hyperparameters.block_size + 1] for i in idx])
+    x = Tensor.stack([data[i : i + hparams.block_size] for i in idx])
+    y = Tensor.stack([data[i + 1 : i + hparams.block_size + 1] for i in idx])
 
     # move the tensor to the specified device
-    x, y = x.to(hyperparameters.device), y.to(hyperparameters.device)
+    x, y = x.to(hparams.device), y.to(hparams.device)
     return x, y
 
 
 @Tensor.no_grad()
-def generate(model, idx, max_new_tokens, hyperparameters):
+def generate(model, idx, max_new_tokens, hparams: Hyperparameters):
     """
     Generates new tokens using the trained model.
 
@@ -149,9 +139,9 @@ def generate(model, idx, max_new_tokens, hyperparameters):
     Returns:
         Tensor: A tensor containing the indices of the generated tokens.
     """
-    idx = Tensor.zeros((1, hyperparameters.block_size)).to(hyperparameters.device).long()
+    idx = Tensor.zeros((1, hparams.block_size)).to(hparams.device).long()
     for i in range(max_new_tokens):
-        idx_cond = idx[:, -hyperparameters.block_size :]
+        idx_cond = idx[:, -hparams.block_size :]
         logits = model(idx_cond)
         logits = logits[:, -1, :]  # only take the last token, since we're predicting the "next" token
 
@@ -164,91 +154,112 @@ def generate(model, idx, max_new_tokens, hyperparameters):
 
     # return the model to training mode
     model.train()
-    return idx[:, hyperparameters.block_size :]
+    return idx[:, hparams.block_size :]
 
 
-# 4. Model Components (MHA, MLP, RMSNorm, Block, GPT)
-class MHA(nn.Module):
-    def __init__(self, model_args: ModelArgs) -> None:
-        """
-        Initializes the Multi-Head Attention module.
+# 4. Model Components (Attention (Single head and MHA), MLP, RMSNorm, Block, GPT)
+class Head(nn.Module):
+    """
+    A single attention head.
 
-        Args:
-            model_args (ModelArgs): The arguments for the model, including dimensions and sequence length.
-        """
+    This class implements a single attention head, which is a key component of the transformer architecture.
+    It computes the attention scores, applies a mask, and performs the attention operation.
+
+    Args:
+        head_size (int): The size of the attention head.
+        hyperparameters (Hyperparameters): The hyperparameters of the model.
+    """
+
+    def __init__(self, head_size, hparams: Hyperparameters):
         super().__init__()
-        self.key = nn.Linear(model_args.d_model, model_args.d_model)
-        self.query = nn.Linear(model_args.d_model, model_args.d_model)
-        self.value = nn.Linear(model_args.d_model, model_args.d_model)
-        self.proj = nn.Linear(model_args.d_model, model_args.d_model)
-        self.head_dim = model_args.d_model // model_args.n_heads
+        self.key = nn.Linear(hparams.num_embeds, head_size)
+        self.query = nn.Linear(hparams.num_embeds, head_size)
+        self.value = nn.Linear(hparams.num_embeds, head_size)
+        self.register_buffer("tril", Tensor(np.tril(np.ones((hparams.block_size, hparams.block_size)))))
+        self.dropout = nn.Dropout(hparams.dropout)
 
-        self.n_heads = model_args.n_heads
-        mask = np.tril(np.ones((model_args.seq_len, model_args.seq_len)))
-        mask = np.triu(mask, k=1) * -np.inf
-        # Repeat the mask for each head
-        mask = np.repeat(mask[np.newaxis, np.newaxis, :, :], self.n_heads, axis=1)
-        self.register_buffer("mask", Tensor(mask).float())
-
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x):
         """
-        Defines the computation performed at every call.
+        Computes the forward pass of the attention head.
 
         Args:
-            x (Tensor): The input data.
+            x (Tensor): The input tensor of shape (batch_size, sequence_length, num_embeds).
 
         Returns:
-            Tensor: The output of the Multi-Head Attention layer.
+            Tensor: The output tensor after applying attention, of shape (batch_size, sequence_length, head_size).
         """
-        if not isinstance(x, Tensor):
-            raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
+        batch_size, sequence_length, channels = x.shape
 
-        batch_size, time_step, channels = x.shape
-        key = self.key(x)
-        query = self.query(x)
-        value = self.value(x)
-        key = key.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
-        query = query.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
-        value = value.reshape(batch_size, time_step, self.n_heads, channels // self.n_heads).transpose(1, 2)
+        # Compute key, query, and value projections
+        k = self.key(x)
+        q = self.query(x)
+        v = self.value(x)
 
-        # Call the static attention method
-        x = MHA.attention(key, query, value, self.mask)
+        # Compute attention scores
+        attention_scores = q @ k.transpose(-2, -1)
+        scale_factor = Tensor(k.shape[-1] ** -0.5)  # Wrap the scalar in a Tensor
+        attention_scores = attention_scores * scale_factor  # Ensure element-wise multiplication
 
-        return x
-
-    @staticmethod
-    def attention(key, query, value, mask) -> Tensor:
-        """
-        Computes the attention scores.
-
-        Args:
-            key (Tensor): The key vectors.
-            query (Tensor): The query vectors.
-            value (Tensor): The value vectors.
-            mask (Tensor): The mask tensor.
-
-        Returns:
-            Tensor: The output of the attention mechanism.
-        """
-        logger.debug(
-            f"key shape: {key.shape}, query shape: {query.shape}, value shape: {value.shape}, mask shape: {mask.shape}"
+        # Apply mask to attention scores
+        masked_attention_scores = attention_scores.masked_fill(
+            self.tril[:sequence_length, :sequence_length] == 0, float("-inf")
         )
-        batch_size, n_head, time_step, channels = key.shape
-        scaling_factor = Tensor(channels**-0.5)
-        attention_scores = (query @ key.transpose(-2, -1)) * scaling_factor
-        attention_scores = mask[:, :, :time_step, :time_step] + attention_scores
-        attention_scores = Softmax().forward(attention_scores, dim=-1)
-        logger.debug(f"value shape: {value.shape}, attention_scores shape: {attention_scores.shape}")
 
-        value = value.reshape(batch_size, n_head, time_step, channels, 1)
-        attention_scores = attention_scores.reshape(batch_size, n_head, time_step, 1, time_step)
+        # Compute attention probabilities
+        attention_probs = Softmax().forward(masked_attention_scores)
+        attention_probs = self.dropout(attention_probs)
 
-        matmul_result = value @ attention_scores
-        x = matmul_result.sum(axis=-1)
+        # Compute the attended values
+        v = self.value(x)
+        logger.debug(f"v: {v.shape}, {type(v)}")
+        logger.debug(f"attention_probs: {attention_probs.shape}, {type(attention_probs)}")
+        out = attention_probs.data @ v.data
 
-        if not isinstance(x, Tensor):
-            raise TypeError(f"Expected x to be a Tensor, but got {type(x).__name__}")
-        return x
+        return out
+
+
+class MultiHeadAttention(nn.Module):
+    """
+    Multi-head attention module.
+
+    This module applies multiple attention heads in parallel and concatenates their outputs.
+    The concatenated output is then projected to the original embedding dimension.
+
+    Args:
+        num_heads (int): The number of attention heads.
+        head_size (int): The size of each attention head.
+        hyperparameters (Hyperparameters): The hyperparameters of the model.
+    """
+
+    def __init__(self, head_size, hparams: Hyperparameters):
+        super().__init__()
+        self.heads = nn.ModuleList([Head(head_size, hparams) for _ in range(hparams.num_heads)])
+        self.proj = nn.Linear(hparams.num_embeds, hparams.num_embeds)
+        self.dropout = nn.Dropout(hparams.dropout)
+
+    def forward(self, x):
+        """
+        Computes the forward pass of the multi-head attention module.
+
+        Args:
+            x (Tensor): The input tensor of shape (batch_size, sequence_length, num_embeds).
+
+        Returns:
+            Tensor: The output tensor after applying multi-head attention, of shape (batch_size, sequence_length, num_embeds).
+        """
+        # Apply attention heads in parallel
+        head_outputs = [h(x) for h in self.heads]
+
+        # Concatenate the outputs of all attention heads
+        concatenated = Tensor.cat(head_outputs, dim=-1)
+
+        # Project the concatenated output back to the original embedding dimension
+        out = self.proj(concatenated)
+
+        # Apply dropout regularization
+        out = self.dropout(out)
+
+        return out
 
 
 class MLP(nn.Module):
@@ -339,7 +350,7 @@ class Block(nn.Module):
     layer normalization.
     """
 
-    def __init__(self, model_args: ModelArgs) -> None:
+    def __init__(self, hparams: Hyperparameters) -> None:
         """
         Initializes the Block module.
 
@@ -347,10 +358,11 @@ class Block(nn.Module):
             model_args (ModelArgs): The arguments for the model, including dimensions and sequence length.
         """
         super().__init__()
-        self.attn = MHA(model_args)
-        self.ffn = MLP(model_args.d_model, model_args.d_model)
-        self.l1 = RMSNorm(model_args.d_model, eps=model_args.esp)
-        self.l2 = RMSNorm(model_args.d_model, eps=model_args.esp)
+        head_size = hparams.num_embeds // hparams.num_heads
+        self.attn = MultiHeadAttention(head_size, hparams)
+        self.ffn = MLP(in_features=hparams.num_embeds, out_features=hparams.num_embeds)
+        self.l1 = RMSNorm(hparams.num_embeds, eps=hparams.dropout)
+        self.l2 = RMSNorm(hparams.num_embeds, eps=hparams.dropout)
 
     def forward(self, x):
         """
@@ -373,7 +385,7 @@ class GPT(nn.Module):
     a list of transformer blocks, a normalization layer, and a projection layer.
     """
 
-    def __init__(self, model_args: ModelArgs, device: str):
+    def __init__(self, hparams: Hyperparameters, vocab_size) -> None:
         """
         Initializes the GPT model.
 
@@ -382,19 +394,32 @@ class GPT(nn.Module):
             device (str): The device to run the model on ("cpu" or "gpu").
         """
         super().__init__()
-        self.device = device
-        self.token_embedding = nn.Embedding(model_args.vocab_size, model_args.d_model)
-        self.position_embedding = nn.Embedding(model_args.seq_len, model_args.d_model)
-        self.layers = nn.ModuleList([Block(model_args) for _ in range(model_args.num_layers)])
-        self.norm = RMSNorm(model_args.d_model)
-        self.proj = nn.Linear(model_args.d_model, model_args.vocab_size)
+        self.device = hparams.device
+        self.token_embedding = nn.Embedding(vocab_size, hparams.num_embeds)
+        self.position_embedding = nn.Embedding(hparams.block_size, hparams.num_embeds)
+        self.layers = nn.ModuleList([Block(hparams=hparams) for _ in range(hparams.num_layers)])
+        self.norm = RMSNorm(hparams.num_embeds)
+        self.proj = nn.Linear(hparams.num_embeds, vocab_size)
 
-    def forward(self, x: Tensor) -> Tensor:
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, (nn.Linear, nn.Embedding)):
+            # Assuming module.weight.data is a numpy array
+            mean = 0.0
+            std = 0.02
+            module.weight.data = np.random.normal(mean, std, module.weight.data.shape)
+        if isinstance(module, nn.Linear) and module.bias is not None:
+            module.bias.data = np.zeros_like(module.bias.data)
+
+    def forward(self, x: Tensor, targets=None) -> Tensor:
         """
-        Defines the computation performed at every call.
+        Overrides the base forward method in the nn.Module class to define the computation performed at every call.
 
         Args:
             x (Tensor): The input data.
+            targets (Tensor, optional): The target values. If provided, the method will compute and return the loss.
+            If not provided, the method will only return the logits. Defaults to None.
 
         Returns:
             Tensor: The output of the GPT model.
@@ -404,53 +429,84 @@ class GPT(nn.Module):
         B, T = x.shape
         token_embedding = self.token_embedding(x)
         position_embedding = self.position_embedding(Tensor(np.arange(T)).to(self.device))
-        x = token_embedding + position_embedding
-
+        x = token_embedding + position_embedding  # Combine token and position embeddings (B,T,C)
         for layer in self.layers:
-            x = layer(x)
+            x = layer(x)  # Pass through each transformer block (B,T,C)
+        x = self.norm(x)  # Apply normalization (B,T,C)
+        logits = self.proj(x)  # Project to vocabulary size (B,T,vocab_size)
 
-        x = self.norm(x)
-        logits = self.proj(x)
+        if targets is not None:
+            B, T, C = logits.shape
+            logits_flat = logits.view(B * T, C)
+            targets_flat = targets.view(B * T)
+            loss = CrossEntropyLoss.forward(logits_flat, targets_flat)
+        else:
+            loss = None
 
-        return logits
+        return logits, loss
+
+    def generate(self, idx, max_new_tokens, hparams: Hyperparameters):
+        """
+        Generates text based on the provided context.
+
+        This function takes an initial context of indices and generates text by repeatedly predicting the next token
+        until the specified maximum number of new tokens is reached. The generation process involves sampling from the
+        probability distribution over the vocabulary for each new token.
+
+        Args:
+            idx (Tensor): The initial context represented as a tensor of token indices with shape (B, T), where B is
+                          the batch size and T is the sequence length of the context.
+            max_new_tokens (int): The maximum number of new tokens to generate.
+            hparams (Hyperparameters): The hyperparameters for the model, including block size.
+
+        Returns:
+            Tensor: The generated indices including the initial context and the new tokens, with shape (B, T + max_new_tokens).
+        """
+        # idx is (B, T) array of indices in the current context
+        for _ in range(max_new_tokens):
+            # crop idx to the last block_size tokens
+            idx_cond = idx[:, -hparams.block_size :]
+            # get the predictions
+            logits, loss = self(idx_cond)
+            # focus only on the last time step
+            logits = logits[:, -1, :]  # becomes (B, C)
+            # apply softmax to get probabilities
+            probs = Softmax.forward(logits, dim=-1)  # (B, C)
+            # sample from the distribution - don't have access to torch.multinomial, so we're making our own
+            idx_next = np.array([np.random.choice(len(probs[b]), 1, p=probs[b]) for b in range(len(probs))])  # (B, 1)
+            idx_next = Tensor(idx_next).to(probs.device)  # Convert to Tensor and move to the same device as probs
+            # append sampled index to the running sequence
+            idx = Tensor.cat((idx, idx_next), dim=1)  # (B, T+1)
+        return idx
 
 
 # 5. Main Function
 def main():
-    # hyperparameters and modelargs
+    # hyperparameters for the model and training run
     hyperparameters = Hyperparameters(
         batch_size=64,
-        block_size=128,
+        block_size=256,
         max_iters=5000,
         eval_interval=500,
         learning_rate=3e-4,
         device="cpu",
-        eval_iters=100,
-        num_embeds=128 * 2,
-        num_heads=4,
-        num_layers=2,
+        eval_iters=200,
+        num_embeds=384,
+        num_heads=6,
+        num_layers=6,
         dropout=0.2,
     )
 
-    # fmt: off
-    model_args = ModelArgs(
-        seq_len=1000,
-        d_model=16,
-        n_heads=2,
-        vocab_size=1000,
-        num_layers=2,
-        esp=1e-5,
-    )
-    # fmt: on
-
-    model = GPT(model_args, hyperparameters.device).to(hyperparameters.device)
-    optimizer = Adam(model.parameters(), lr=hyperparameters.learning_rate)
     tokenizer = CharTokenizer(filepath="datasets/input.txt")
 
     data = Tensor(tokenizer.encode(tokenizer.text)).long()
     n = int(0.95 * len(data))
     train_data = data[:n]
     val_data = data[n:]
+    vocab_size = tokenizer.get_vocab_size()
+
+    model = GPT(hparams=hyperparameters, vocab_size=vocab_size).to(hyperparameters.device)
+    optimizer = Adam(model.parameters(), lr=hyperparameters.learning_rate)
 
     # type checks before moving on
     if not all(isinstance(x, Tensor) for x in [data, train_data, val_data]):
