@@ -1,7 +1,7 @@
 import numpy as np
 
 from punytorch.tensor import Tensor
-from punytorch.activations import Softmax
+from punytorch.ops import Operation
 
 
 class MSELoss:
@@ -43,52 +43,63 @@ class MSELoss:
         return Tensor(grad)
 
 
-class CrossEntropyLoss:
+class CrossEntropyLoss(Operation):
     """
-    Implements the Cross Entropy loss function for a neural network.
+    Combines LogSoftmax and NLLLoss in a single operation.
+    Expects raw logits as input, similar to PyTorch's nn.CrossEntropyLoss.
     """
-
+    
     @staticmethod
-    def forward(y_pred: Tensor, y_true: Tensor) -> Tensor:
+    def forward(logits: Tensor, targets: Tensor) -> float:
         """
-        Computes the forward pass of the Cross Entropy loss function.
-
+        Computes cross entropy loss from raw logits.
+        
         Args:
-            y_pred (Tensor): The predicted values.
-            y_true (Tensor): The true values.
-
+            logits (Tensor): Raw model outputs, shape (batch_size, num_classes)
+            targets (Tensor): One-hot encoded labels, shape (batch_size, num_classes)
+            
         Returns:
-            Tensor: The Cross Entropy loss, which is the negative log likelihood of the true labels given the predictions.
-                    The result is wrapped in a Tensor.
+            float: Scalar loss value
         """
-        probs = Softmax.forward(y_pred)
-        log_likelihood = -np.log(probs) * y_true  # Element-wise multiplication
-        loss = np.sum(log_likelihood) / len(y_true)
-        return Tensor(loss, requires_grad=True)
-
+        # Numerical stability: Subtract max logit (prevents exp overflow)
+        shifted_logits = logits.data - np.max(logits.data, axis=1, keepdims=True)
+        
+        # Log-softmax implementation
+        exp_logits = np.exp(shifted_logits)
+        log_sum_exp = np.log(np.sum(exp_logits, axis=1, keepdims=True))
+        log_softmax = shifted_logits - log_sum_exp
+        
+        # Cross entropy is negative sum of true_probs * log_probs
+        batch_losses = -np.sum(targets.data * log_softmax, axis=1)
+        loss = np.mean(batch_losses)
+        
+        return loss
+    
     @staticmethod
-    def backward(y_pred: Tensor, y_true: Tensor) -> Tensor:
+    def backward(context, grad: Tensor) -> tuple:
         """
-        Computes the backward pass of the Cross Entropy loss function for backpropagation.
-
+        Computes gradient of loss with respect to logits.
+        
         Args:
-            y_pred (Tensor): The predicted values.
-            y_true (Tensor): The true values.
-
+            context: Function context containing logits and targets
+            grad: Gradient from upstream (usually 1.0 for loss)
+            
         Returns:
-            Tensor: The gradient of the Cross Entropy loss with respect to the predicted values.
-                    This is computed as the difference between the softmax probabilities and the true labels.
-                    The result is wrapped in a Tensor.
+            tuple: (Gradient with respect to logits, None for targets)
         """
-        if y_pred.ndim == 1:
-            exps = np.exp(y_pred - np.max(y_pred)) + 1e-22
-            probs = exps / np.sum(exps)
-        else:
-            exps = np.exp(y_pred - np.max(y_pred, axis=1, keepdims=True)) + 1e-22
-            probs = exps / np.sum(exps, axis=1, keepdims=True)
-        d_loss = probs - y_true  # Subtract the one-hot encoded labels
-        d_loss /= y_true.shape[0]
-        return Tensor(d_loss)  # Wrap the result in a Tensor
+        logits, targets = context.args
+        
+        # Compute softmax (reuse the stability trick)
+        shifted_logits = logits.data - np.max(logits.data, axis=1, keepdims=True)
+        exp_logits = np.exp(shifted_logits)
+        softmax = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
+        
+        # Gradient is (softmax - targets) / batch_size
+        batch_size = logits.shape[0]
+        grad_logits = (softmax - targets.data) / batch_size
+        
+        # Scale by upstream gradient and return as Tensor
+        return Tensor(grad_logits * grad.data), None
 
 
 class BinaryCrossEntropyLoss:
