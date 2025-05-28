@@ -3,7 +3,21 @@ from __future__ import annotations
 import numpy as np
 
 from punytorch.activations import ReLU, Sigmoid, Softmax
-from punytorch.ops import Add, Function, MatMul, Mod, Mul, Pow, Sub, Tanh, TrueDiv
+from punytorch.ops import (
+    Add,
+    Function,
+    MatMul,
+    Max,
+    Mean,
+    Mod,
+    Mul,
+    Pow,
+    Reshape,
+    Sub,
+    Sum,
+    Tanh,
+    TrueDiv,
+)
 
 
 class Tensor:
@@ -15,7 +29,9 @@ class Tensor:
         self.requires_grad = requires_grad
         # if requires_grad is True, then we need to initialize the gradient to zeros
         # and make sure that they're floats, since backprop uses floats
-        self.grad = np.zeros_like(self.data, dtype=np.float64) if requires_grad else None
+        self.grad = (
+            np.zeros_like(self.data, dtype=np.float64) if requires_grad else None
+        )
         self.dtype = self.data.dtype
         self.context = None
 
@@ -29,33 +45,34 @@ class Tensor:
     def __getitem__(self, index):
         # Create a new tensor from the indexed data
         result = Tensor(self.data[index], requires_grad=self.requires_grad)
-        
+
         # If this tensor requires gradients, we need to set up the backward connection
         if self.requires_grad:
             # We need to create a custom indexing operation that can propagate gradients
             from punytorch.ops import Function
-            
+
             class GetItem:
                 @staticmethod
                 def forward(x, index):
                     return x.data[index]
-                
+
                 @staticmethod
                 def backward(context, grad):
                     x, index = context.args
                     # Create a gradient tensor of the same shape as the original
                     grad_input = np.zeros_like(x.data, dtype=np.float64)
                     # Place the gradient at the indexed location
-                    grad_input[index] = grad.data if hasattr(grad, 'data') else grad
+                    grad_input[index] = grad.data if hasattr(grad, "data") else grad
                     return Tensor(grad_input), None
-            
+
             result.context = Function(GetItem, self, index)
-            
+
         return result
 
     @property
     def T(self):
         from punytorch.ops import Transpose, Function
+
         result = Tensor(Transpose.forward(self), requires_grad=self.requires_grad)
         if self.requires_grad:
             result.context = Function(Transpose, self)
@@ -81,7 +98,9 @@ class Tensor:
         return self.data.tolist()
 
     def item(self):
-        assert np.prod(self.data.shape) == 1, "Only one element tensors can be converted to Python scalars"
+        assert np.prod(self.data.shape) == 1, (
+            "Only one element tensors can be converted to Python scalars"
+        )
         return self.data.item()
 
     @staticmethod
@@ -130,7 +149,11 @@ class Tensor:
             if tensor.context is not None:
                 grads = tensor.context.op.backward(tensor.context, grad)
                 for arg, grad_arg in zip(tensor.context.args, grads):
-                    if isinstance(arg, Tensor) and arg.requires_grad and grad_arg is not None:
+                    if (
+                        isinstance(arg, Tensor)
+                        and arg.requires_grad
+                        and grad_arg is not None
+                    ):
                         if arg.grad is None:
                             arg.grad = np.zeros_like(arg.data)
                         arg.grad += grad_arg.data  # Ensure grad_arg is a numpy array
@@ -293,16 +316,16 @@ class Tensor:
     def cross_entropy(self, targets):
         """
         Computes cross entropy loss between logits and targets.
-        
+
         Args:
             targets (Tensor): One-hot encoded target labels
-            
+
         Returns:
             Tensor: Scalar loss value with gradient computation enabled
         """
         from punytorch.losses import CrossEntropyLoss
         from punytorch.ops import Function
-        
+
         targets = Tensor.ensure_tensor(targets)
         result = Tensor(CrossEntropyLoss.forward(self, targets), requires_grad=True)
         if self.requires_grad or targets.requires_grad:
@@ -327,7 +350,9 @@ class Tensor:
 
     @staticmethod
     def multinomial(input, num_samples):
-        return Tensor(np.random.choice(range(input.shape[1]), size=num_samples, p=input.data[0]))
+        return Tensor(
+            np.random.choice(range(input.shape[1]), size=num_samples, p=input.data[0])
+        )
 
     @staticmethod
     def cat(tensors, dim=0):
@@ -355,4 +380,6 @@ class Tensor:
         if device == "cpu":
             return self  # Since NumPy arrays are already on the CPU, just return self.
         else:
-            raise NotImplementedError("Only 'cpu' device is supported for the Tensor class.")
+            raise NotImplementedError(
+                "Only 'cpu' device is supported for the Tensor class."
+            )

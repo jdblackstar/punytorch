@@ -72,6 +72,7 @@ class Sigmoid:
                    and the second element is None (since Sigmoid has no parameters to update).
         """
         from punytorch.tensor import Tensor
+
         x = context.args[0].data
         sigmoid_x = 1 / (1 + np.exp(-x))
         grad_data = grad.data if isinstance(grad, Tensor) else grad

@@ -14,7 +14,9 @@ def test_MSELoss():
     y_true = Tensor([1.0, 2.0, 3.0])
     y_pred = Tensor([1.0, 2.0, 3.0])
     assert np.isclose(MSELoss.forward(y_pred.data, y_true.data).data, Tensor(0.0).data)
-    assert np.allclose(MSELoss.backward(y_pred.data, y_true.data).data, Tensor([0.0, 0.0, 0.0]).data)
+    assert np.allclose(
+        MSELoss.backward(y_pred.data, y_true.data).data, Tensor([0.0, 0.0, 0.0]).data
+    )
 
 
 @pytest.mark.gpt

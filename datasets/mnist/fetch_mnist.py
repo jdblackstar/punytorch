@@ -32,7 +32,9 @@ def download_mnist(directory):
                     f.write(chunk)
             print(f"Downloaded {file}")
         else:
-            print(f"Failed to download {file}. HTTP Response Code: {response.status_code}")
+            print(
+                f"Failed to download {file}. HTTP Response Code: {response.status_code}"
+            )
 
 
 def load_mnist(directory) -> tuple:
@@ -53,7 +55,9 @@ def load_mnist(directory) -> tuple:
         with gzip.open(filename, "rb") as f:
             magic = struct.unpack(">I", f.read(4))
             if magic[0] != 2049:
-                raise ValueError(f"Invalid magic number {magic}, aborting read of labels.")
+                raise ValueError(
+                    f"Invalid magic number {magic}, aborting read of labels."
+                )
             num_items = struct.unpack(">I", f.read(4))[0]
             return np.frombuffer(f.read(), dtype=np.uint8, count=num_items)
 
@@ -61,7 +65,9 @@ def load_mnist(directory) -> tuple:
         with gzip.open(filename, "rb") as f:
             magic, num, rows, cols = struct.unpack(">IIII", f.read(16))
             if magic != 2051:
-                raise ValueError(f"Invalid magic number {magic}, aborting read of images.")
+                raise ValueError(
+                    f"Invalid magic number {magic}, aborting read of images."
+                )
             images = np.frombuffer(f.read(), dtype=np.uint8)
             return images.reshape(num, rows, cols, 1)
 

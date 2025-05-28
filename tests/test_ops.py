@@ -11,7 +11,9 @@ def test_Add():
     x = Tensor([8], requires_grad=True)
     y = Tensor([5], requires_grad=True)
     z = x + y
-    assert z.context is not None, "z.context should not be None. Check that requires_grad=True."
+    assert z.context is not None, (
+        "z.context should not be None. Check that requires_grad=True."
+    )
     assert np.all(z.data == 13)
 
     # backward test
@@ -28,7 +30,9 @@ def test_Sub():
     x = Tensor([8], requires_grad=True)
     y = Tensor([5], requires_grad=True)
     z = x - y
-    assert z.context is not None, "z.context should not be None. Check that requires_grad=True."
+    assert z.context is not None, (
+        "z.context should not be None. Check that requires_grad=True."
+    )
     assert np.all(z.data == 3)
 
     # backward test
@@ -45,7 +49,9 @@ def test_Mul():
     x = Tensor([8], requires_grad=True)
     y = Tensor([5], requires_grad=True)
     z = x * y  # Use the * operator
-    assert z.context is not None, "z.context should not be None. Check that requires_grad=True."
+    assert z.context is not None, (
+        "z.context should not be None. Check that requires_grad=True."
+    )
     assert np.all(z.data == 40)
 
     # backward test
@@ -62,7 +68,9 @@ def test_TrueDiv():
     x = Tensor([8], requires_grad=True)
     y = Tensor([2], requires_grad=True)
     z = x / y  # Use the / operator
-    assert z.context is not None, "z.context should not be None. Check that requires_grad=True."
+    assert z.context is not None, (
+        "z.context should not be None. Check that requires_grad=True."
+    )
     assert np.all(z.data == 4)
 
     # backward test
@@ -79,7 +87,9 @@ def test_MatMul():
     x = Tensor(np.array([[1, 2, 3], [4, 5, 6]]), requires_grad=True)  # 2x3 matrix
     y = Tensor(np.array([[7, 8], [9, 10], [11, 12]]), requires_grad=True)  # 3x2 matrix
     z = x @ y
-    assert z.context is not None, "z.context should not be None. Check that requires_grad=True."
+    assert z.context is not None, (
+        "z.context should not be None. Check that requires_grad=True."
+    )
     assert np.all(z.data == np.array([[58, 64], [139, 154]]))
 
     # backward test

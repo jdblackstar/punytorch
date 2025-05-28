@@ -87,11 +87,11 @@ def train(
                 pred = model.forward(batch_images)
                 loss = cross_entropy(pred, batch_labels)
                 loss.backward()
-                
+
                 # Debug gradients after backward pass (only for first batch of first epoch)
                 if epoch == 0 and pbar.n == 0:
                     _debug_grad_flow(model)
-                
+
                 optimizer.step()
 
                 pbar.update(1)
@@ -116,13 +116,15 @@ def _debug_grad_flow(model: Module) -> None:
                     grad_mean = np.mean(layer.weight.grad)
                     grad_std = np.std(layer.weight.grad)
                     grad_max = np.max(np.abs(layer.weight.grad))
-                    print(f"  weight grad mean: {grad_mean:.6f} | std: {grad_std:.6f} | max_abs: {grad_max:.6f}")
+                    print(
+                        f"  weight grad mean: {grad_mean:.6f} | std: {grad_std:.6f} | max_abs: {grad_max:.6f}"
+                    )
                     print(f"  weight grad shape: {layer.weight.grad.shape}")
                 else:
                     print("  weight grad: None")
             else:
                 print("  weight has no grad attribute")
-            
+
             # Check bias gradients
             if layer.bias is not None:
                 if hasattr(layer.bias, "grad"):
@@ -130,7 +132,9 @@ def _debug_grad_flow(model: Module) -> None:
                         grad_mean = np.mean(layer.bias.grad)
                         grad_std = np.std(layer.bias.grad)
                         grad_max = np.max(np.abs(layer.bias.grad))
-                        print(f"  bias grad mean: {grad_mean:.6f} | std: {grad_std:.6f} | max_abs: {grad_max:.6f}")
+                        print(
+                            f"  bias grad mean: {grad_mean:.6f} | std: {grad_std:.6f} | max_abs: {grad_max:.6f}"
+                        )
                         print(f"  bias grad shape: {layer.bias.grad.shape}")
                     else:
                         print("  bias grad: None")
@@ -154,10 +158,16 @@ if __name__ == "__main__":
     print(f"Train labels one-hot encoded: {is_one_hot(train_labels)}")
     print(f"Test labels one-hot encoded: {is_one_hot(test_labels)}")
 
-    train_labels, test_labels = map(lambda x: Tensor(x, requires_grad=True), [train_labels, test_labels])
+    train_labels, test_labels = map(
+        lambda x: Tensor(x, requires_grad=True), [train_labels, test_labels]
+    )
 
-    train_images = Tensor(train_images.reshape(-1, 28 * 28) / 255, requires_grad=True).float()
-    test_images = Tensor(test_images.reshape(-1, 28 * 28) / 255, requires_grad=True).float()
+    train_images = Tensor(
+        train_images.reshape(-1, 28 * 28) / 255, requires_grad=True
+    ).float()
+    test_images = Tensor(
+        test_images.reshape(-1, 28 * 28) / 255, requires_grad=True
+    ).float()
 
     model = Network()
     optimizer = Adam(model.parameters(), lr=LR)

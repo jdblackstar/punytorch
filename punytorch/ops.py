@@ -45,7 +45,7 @@ class Add(Operation):
         """
         x, y = context.args
         from punytorch.tensor import Tensor
-        
+
         # For x gradient
         grad_x_data = grad.data
         # Sum over dimensions that were broadcast
@@ -56,7 +56,7 @@ class Add(Operation):
         for i, (dim, grad_dim) in enumerate(zip(x.data.shape, grad_x_data.shape)):
             if dim == 1 and grad_dim > 1:
                 grad_x_data = np.sum(grad_x_data, axis=i, keepdims=True)
-        
+
         # For y gradient
         grad_y_data = grad.data
         # Sum over dimensions that were broadcast
@@ -67,7 +67,7 @@ class Add(Operation):
         for i, (dim, grad_dim) in enumerate(zip(y.data.shape, grad_y_data.shape)):
             if dim == 1 and grad_dim > 1:
                 grad_y_data = np.sum(grad_y_data, axis=i, keepdims=True)
-        
+
         return Tensor(grad_x_data), Tensor(grad_y_data)
 
 
@@ -223,23 +223,25 @@ class Tanh(Operation):
         return (1 - tanh(x)^2) * grad
         """
         from punytorch.tensor import Tensor
+
         x = context.args[0].data
         grad_data = grad.data if isinstance(grad, Tensor) else grad
         grad_tanh = 1 - np.tanh(x) ** 2
-        return Tensor(grad_tanh * grad_data),
+        return (Tensor(grad_tanh * grad_data),)
 
 
 class Transpose(Operation):
     """
     Implements matrix transpose operation with proper gradient flow.
     """
+
     @staticmethod
     def forward(x):
         """
         z = x.T (transpose of x)
         """
         return np.transpose(x.data)
-    
+
     @staticmethod
     def backward(context, grad):
         """
@@ -247,8 +249,9 @@ class Transpose(Operation):
         The gradient simply needs to be transposed back.
         """
         from punytorch.tensor import Tensor
+
         # Transpose the gradient back
         grad_data = grad.data if isinstance(grad, Tensor) else grad
-        return Tensor(np.transpose(grad_data)),
+        return (Tensor(np.transpose(grad_data)),)
 
 
