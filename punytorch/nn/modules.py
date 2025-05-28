@@ -147,7 +147,7 @@ class Module:
         Raises:
             NotImplementedError: If not overridden by subclasses.
         """
-        raise NotImplemented
+        raise NotImplementedError
 
 
 class Linear(Module):
@@ -169,8 +169,12 @@ class Linear(Module):
         self.in_features = in_features
         self.out_features = out_features
 
-        self.weight = Parameter(np.random.rand(out_features, in_features) / np.sqrt(in_features + out_features))
-        self.bias = Parameter(np.zeros(out_features)) if bias else None
+        self.weight = Parameter(
+            np.random.randn(out_features, in_features) * np.sqrt(2.0 / in_features)
+        )
+        self.bias = Parameter(
+            np.zeros((out_features,))
+        ) if bias else None
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -183,9 +187,7 @@ class Linear(Module):
             Tensor: The output of the linear transformation.
         """
         self.input = x
-        x = x @ self.weight.T
-        if self.bias:
-            x = x + self.bias
+        x = (x @ self.weight.T) + self.bias
         return x
 
     def backward(self, grad: Tensor) -> Tensor:

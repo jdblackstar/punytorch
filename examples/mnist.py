@@ -8,7 +8,6 @@ from tqdm import tqdm
 
 from datasets.mnist.fetch_mnist import download_mnist, load_mnist
 from punytorch.helpers import is_one_hot
-from punytorch.losses import CrossEntropyLoss
 from punytorch.nn.modules import Linear, Module
 from punytorch.nn.optimizers import Adam
 from punytorch.tensor import Tensor
@@ -35,15 +34,24 @@ class Network(Module):
         self.l3 = Linear(64, 10)
 
     def forward(self, x: Tensor) -> Tensor:
-        x = Tensor.relu(self.l1(x))
-        x = Tensor.relu(self.l2(x))
-        return self.l3(x)
+        """
+        Executes the network's forward pass and returns probabilities suitable for cross-entropy.
+
+        Args:
+            x (Tensor): The input Tensor, shape (batch_size, 28*28).
+
+        Returns:
+            Tensor: The output probabilities (batch_size, 10).
+        """
+        x = self.l1(x).relu()
+        x = self.l2(x).relu()
+        return self.l3(x)  # Return raw logits
 
 
 @Tensor.no_grad()
 def test(model: Network, test_images: Tensor, test_labels: Tensor):
     preds = model.forward(test_images)
-    pred_indices = np.argmax(preds, axis=-1)
+    pred_indices = np.argmax(preds.data, axis=-1)
 
     # Convert one-hot encoded labels to class indices
     test_labels = np.argmax(Tensor.data_to_numpy(test_labels.data), axis=-1)
@@ -57,7 +65,7 @@ def test(model: Network, test_images: Tensor, test_labels: Tensor):
 
 
 def cross_entropy(y_pred: Tensor, y_true: Tensor) -> Tensor:
-    return CrossEntropyLoss.forward(y_pred, y_true)
+    return y_pred.cross_entropy(y_true)
 
 
 def train(
@@ -79,8 +87,11 @@ def train(
                 pred = model.forward(batch_images)
                 loss = cross_entropy(pred, batch_labels)
                 loss.backward()
-                for param in model.parameters():
-                    print(param.grad)
+                
+                # Debug gradients after backward pass (only for first batch of first epoch)
+                if epoch == 0 and pbar.n == 0:
+                    _debug_grad_flow(model)
+                
                 optimizer.step()
 
                 pbar.update(1)
@@ -88,6 +99,44 @@ def train(
 
         print(f"Epoch: {epoch}, Loss: {loss.item():.4f}")
         test(model, test_images, test_labels)
+
+
+def _debug_grad_flow(model: Module) -> None:
+    """
+    Prints a summary of gradients flowing through the model parameters.
+    Useful for debugging backprop.
+    """
+    print("=== Gradient Flow Debug ===")
+    for name, layer in model.__dict__.items():
+        if isinstance(layer, Linear):
+            print(f"Layer: {name}")
+            # Check weight gradients
+            if hasattr(layer.weight, "grad"):
+                if layer.weight.grad is not None:
+                    grad_mean = np.mean(layer.weight.grad)
+                    grad_std = np.std(layer.weight.grad)
+                    grad_max = np.max(np.abs(layer.weight.grad))
+                    print(f"  weight grad mean: {grad_mean:.6f} | std: {grad_std:.6f} | max_abs: {grad_max:.6f}")
+                    print(f"  weight grad shape: {layer.weight.grad.shape}")
+                else:
+                    print("  weight grad: None")
+            else:
+                print("  weight has no grad attribute")
+            
+            # Check bias gradients
+            if layer.bias is not None:
+                if hasattr(layer.bias, "grad"):
+                    if layer.bias.grad is not None:
+                        grad_mean = np.mean(layer.bias.grad)
+                        grad_std = np.std(layer.bias.grad)
+                        grad_max = np.max(np.abs(layer.bias.grad))
+                        print(f"  bias grad mean: {grad_mean:.6f} | std: {grad_std:.6f} | max_abs: {grad_max:.6f}")
+                        print(f"  bias grad shape: {layer.bias.grad.shape}")
+                    else:
+                        print("  bias grad: None")
+                else:
+                    print("  bias has no grad attribute")
+    print("==========================")
 
 
 if __name__ == "__main__":

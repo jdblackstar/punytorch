@@ -8,7 +8,7 @@ class Function:
 
     def apply(self, *args):
         """
-        Applies the function to the gives arguments.
+        Applies the function to the given arguments.
 
         Args:
             *args: The arguments to apply the function to.
@@ -16,7 +16,7 @@ class Function:
         Returns:
             The result of applying the function.
         """
-        return self.forward(*args)
+        return self.op.forward(*args)
 
 
 class Operation:
@@ -43,7 +43,32 @@ class Add(Operation):
 
         return grad for both x and y
         """
-        return grad, grad
+        x, y = context.args
+        from punytorch.tensor import Tensor
+        
+        # For x gradient
+        grad_x_data = grad.data
+        # Sum over dimensions that were broadcast
+        ndims_added = grad_x_data.ndim - x.data.ndim
+        for i in range(ndims_added):
+            grad_x_data = np.sum(grad_x_data, axis=0)
+        # Sum over dimensions that were broadcast from size 1
+        for i, (dim, grad_dim) in enumerate(zip(x.data.shape, grad_x_data.shape)):
+            if dim == 1 and grad_dim > 1:
+                grad_x_data = np.sum(grad_x_data, axis=i, keepdims=True)
+        
+        # For y gradient
+        grad_y_data = grad.data
+        # Sum over dimensions that were broadcast
+        ndims_added = grad_y_data.ndim - y.data.ndim
+        for i in range(ndims_added):
+            grad_y_data = np.sum(grad_y_data, axis=0)
+        # Sum over dimensions that were broadcast from size 1
+        for i, (dim, grad_dim) in enumerate(zip(y.data.shape, grad_y_data.shape)):
+            if dim == 1 and grad_dim > 1:
+                grad_y_data = np.sum(grad_y_data, axis=i, keepdims=True)
+        
+        return Tensor(grad_x_data), Tensor(grad_y_data)
 
 
 class Sub(Operation):
@@ -191,11 +216,39 @@ class Tanh(Operation):
         return np.tanh(x)
 
     @staticmethod
-    def backward(x, grad):
+    def backward(context, grad):
         """
         d(tanh(x))/dx = 1 - tanh(x)^2
 
         return (1 - tanh(x)^2) * grad
         """
+        from punytorch.tensor import Tensor
+        x = context.args[0].data
+        grad_data = grad.data if isinstance(grad, Tensor) else grad
         grad_tanh = 1 - np.tanh(x) ** 2
-        return grad_tanh * grad
+        return Tensor(grad_tanh * grad_data),
+
+
+class Transpose(Operation):
+    """
+    Implements matrix transpose operation with proper gradient flow.
+    """
+    @staticmethod
+    def forward(x):
+        """
+        z = x.T (transpose of x)
+        """
+        return np.transpose(x.data)
+    
+    @staticmethod
+    def backward(context, grad):
+        """
+        If Z = X.T, then d(Z)/dX = grad.T
+        The gradient simply needs to be transposed back.
+        """
+        from punytorch.tensor import Tensor
+        # Transpose the gradient back
+        grad_data = grad.data if isinstance(grad, Tensor) else grad
+        return Tensor(np.transpose(grad_data)),
+
+
