@@ -32,10 +32,12 @@ class ReLU:
             tuple: A tuple where the first element is the gradient of the loss with respect to the input,
                    and the second element is None (since ReLU has no parameters to update).
         """
+        from punytorch.tensor import Tensor
         x = context.args[0].data
         # grad wasn't broadcasting to the same shape as x, so:
-        grad = np.ones_like(x) if np.isscalar(grad) else grad
-        return (x > 0) * grad, None
+        grad_data = grad.data if isinstance(grad, Tensor) else grad
+        grad_data = np.ones_like(x) if np.isscalar(grad_data) else grad_data
+        return Tensor((x > 0).astype(np.float64) * grad_data), None
 
 
 class Sigmoid:
@@ -69,9 +71,11 @@ class Sigmoid:
             tuple: A tuple where the first element is the gradient of the loss with respect to the input,
                    and the second element is None (since Sigmoid has no parameters to update).
         """
+        from punytorch.tensor import Tensor
         x = context.args[0].data
         sigmoid_x = 1 / (1 + np.exp(-x))
-        return sigmoid_x * (1 - sigmoid_x) * grad, None
+        grad_data = grad.data if isinstance(grad, Tensor) else grad
+        return Tensor(sigmoid_x * (1 - sigmoid_x) * grad_data), None
 
 
 class Softmax:
