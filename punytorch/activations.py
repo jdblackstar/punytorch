@@ -1,7 +1,8 @@
 import numpy as np
+from punytorch.ops import Operation
 
 
-class ReLU:
+class ReLU(Operation):
     """
     Implements the ReLU (Rectified Linear Unit) activation function for a neural network.
     """
@@ -17,7 +18,7 @@ class ReLU:
         Returns:
             numpy.ndarray: The output after applying the ReLU function, which is max(0, x).
         """
-        return np.maximum(0, x)
+        return np.maximum(0, x.data)
 
     @staticmethod
     def backward(context, grad):
@@ -33,6 +34,7 @@ class ReLU:
                    and the second element is None (since ReLU has no parameters to update).
         """
         from punytorch.tensor import Tensor
+
         x = context.args[0].data
         # grad wasn't broadcasting to the same shape as x, so:
         grad_data = grad.data if isinstance(grad, Tensor) else grad
@@ -40,7 +42,7 @@ class ReLU:
         return Tensor((x > 0).astype(np.float64) * grad_data), None
 
 
-class Sigmoid:
+class Sigmoid(Operation):
     """
     Implements the Sigmoid activation function for a neural network.
     """
@@ -56,7 +58,7 @@ class Sigmoid:
         Returns:
             numpy.ndarray: The output after applying the Sigmoid function, which is 1 / (1 + exp(-x)).
         """
-        return 1 / (1 + np.exp(-x))
+        return 1 / (1 + np.exp(-x.data))
 
     @staticmethod
     def backward(context, grad):
@@ -79,7 +81,7 @@ class Sigmoid:
         return Tensor(sigmoid_x * (1 - sigmoid_x) * grad_data), None
 
 
-class Softmax:
+class Softmax(Operation):
     """
     Implements the Softmax activation function for a neural network.
     """
@@ -99,7 +101,10 @@ class Softmax:
         """
         if dim is None:
             dim = -1
-        e_x = np.exp(x - np.max(x, axis=dim, keepdims=True))  # subtract max(x) for numerical stability
+        input_data = x.data if hasattr(x, "data") else x
+        e_x = np.exp(
+            input_data - np.max(input_data, axis=dim, keepdims=True)
+        )  # subtract max(x) for numerical stability
         return e_x / np.sum(e_x, axis=dim, keepdims=True)
 
     @staticmethod
@@ -119,15 +124,18 @@ class Softmax:
         Returns:
             numpy.ndarray: The gradient of the loss with respect to the input.
         """
+        from punytorch.tensor import Tensor
+
         x = context.args[0].data
         softmax_x = np.exp(x - np.max(x))
         softmax_x /= np.sum(softmax_x, axis=0)
-        grad = np.ones_like(x) if np.isscalar(grad) else grad
+        grad_data = grad.data if isinstance(grad, Tensor) else grad
+        grad_data = np.ones_like(x) if np.isscalar(grad_data) else grad_data
         grad_input = np.zeros_like(x)
         for i in range(len(x)):
             for j in range(len(x)):
                 if i == j:
-                    grad_input[i] += grad[j] * softmax_x[i] * (1 - softmax_x[j])
+                    grad_input[i] += grad_data[j] * softmax_x[i] * (1 - softmax_x[j])
                 else:
-                    grad_input[i] -= grad[j] * softmax_x[i] * softmax_x[j]
-        return grad_input
+                    grad_input[i] -= grad_data[j] * softmax_x[i] * softmax_x[j]
+        return Tensor(grad_input), None

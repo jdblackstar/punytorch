@@ -180,11 +180,13 @@ class Pow(Operation):
         d(x ^ y)/dy = x^y * log(x)
 
         return grad * (y * x ** (y - 1)) for x
-        return grad * (x**y * np.log(x)) for y
+        return grad * (x**y * np.log(x.data)) for y
         """
+        from punytorch.tensor import Tensor
+
         x, y = context.args
         grad_x = grad * (y * x ** (y - 1))
-        grad_y = grad * (x**y * np.log(x))
+        grad_y = grad * (x**y * Tensor(np.log(x.data)))
         return grad_x, grad_y
 
 
@@ -255,3 +257,226 @@ class Transpose(Operation):
         return (Tensor(np.transpose(grad_data)),)
 
 
+class Reshape(Operation):
+    """
+    Implements tensor reshape operation with proper gradient flow.
+    """
+
+    @staticmethod
+    def forward(x, shape):
+        """
+        Reshapes the tensor to the specified shape.
+
+        Args:
+            x: Input tensor
+            shape: Target shape tuple
+
+        Returns:
+            numpy.ndarray: Reshaped tensor data
+        """
+        return x.data.reshape(tuple(shape))
+
+    @staticmethod
+    def backward(context, grad):
+        """
+        Reshapes gradient back to original tensor shape.
+
+        Args:
+            context: Function context containing original tensor and target shape
+            grad: Gradient tensor
+
+        Returns:
+            tuple: (Gradient reshaped to original shape, None for shape parameter)
+        """
+        from punytorch.tensor import Tensor
+
+        x, _ = context.args
+        grad_data = grad.data if hasattr(grad, "data") else grad
+        return Tensor(grad_data.reshape(x.shape)), None
+
+
+class Sum(Operation):
+    """
+    Implements tensor sum reduction with proper gradient flow.
+    """
+
+    @staticmethod
+    def forward(x, axis=None, keepdims=False):
+        """
+        Computes the sum of tensor elements along specified axis.
+
+        Args:
+            x: Input tensor
+            axis: Axis or axes along which to sum. If None, sum all elements.
+            keepdims: Whether to keep reduced dimensions
+
+        Returns:
+            numpy.ndarray: Sum result
+        """
+        return np.sum(x.data, axis=axis, keepdims=keepdims)
+
+    @staticmethod
+    def backward(context, grad):
+        """
+        Distributes gradient back to all elements that contributed to the sum.
+
+        Args:
+            context: Function context containing original tensor and reduction parameters
+            grad: Gradient tensor
+
+        Returns:
+            tuple: (Gradient distributed to original shape, None for axis parameter)
+        """
+        from punytorch.tensor import Tensor
+
+        x, axis, keepdims = context.args
+        grad_data = grad.data if hasattr(grad, "data") else grad
+
+        # Reshape gradient to match original tensor dimensions if keepdims=False
+        if axis is not None and not keepdims:
+            # Add back the reduced dimensions
+            if isinstance(axis, int):
+                axis = (axis,)
+            elif axis is None:
+                axis = tuple(range(x.data.ndim))
+            else:
+                axis = tuple(axis)
+
+            # Expand dimensions that were reduced
+            for ax in sorted(axis):
+                grad_data = np.expand_dims(grad_data, axis=ax)
+
+        # Broadcast gradient to original tensor shape
+        grad_output = np.broadcast_to(grad_data, x.data.shape)
+        return Tensor(grad_output), None, None
+
+
+class Mean(Operation):
+    """
+    Implements tensor mean reduction with proper gradient flow.
+    """
+
+    @staticmethod
+    def forward(x, axis=None, keepdims=False):
+        """
+        Computes the mean of tensor elements along specified axis.
+
+        Args:
+            x: Input tensor
+            axis: Axis or axes along which to compute mean. If None, mean of all elements.
+            keepdims: Whether to keep reduced dimensions
+
+        Returns:
+            numpy.ndarray: Mean result
+        """
+        return np.mean(x.data, axis=axis, keepdims=keepdims)
+
+    @staticmethod
+    def backward(context, grad):
+        """
+        Distributes gradient back to all elements, scaled by the number of elements.
+
+        Args:
+            context: Function context containing original tensor and reduction parameters
+            grad: Gradient tensor
+
+        Returns:
+            tuple: (Gradient distributed to original shape, None for axis parameter)
+        """
+        from punytorch.tensor import Tensor
+
+        x, axis, keepdims = context.args
+        grad_data = grad.data if hasattr(grad, "data") else grad
+
+        # Calculate the number of elements that contributed to the mean
+        if axis is None:
+            num_elements = x.data.size
+        else:
+            if isinstance(axis, int):
+                num_elements = x.data.shape[axis]
+            else:
+                num_elements = np.prod([x.data.shape[ax] for ax in axis])
+
+        # Reshape gradient to match original tensor dimensions if keepdims=False
+        if axis is not None and not keepdims:
+            if isinstance(axis, int):
+                axis = (axis,)
+            elif axis is None:
+                axis = tuple(range(x.data.ndim))
+            else:
+                axis = tuple(axis)
+
+            # Expand dimensions that were reduced
+            for ax in sorted(axis):
+                grad_data = np.expand_dims(grad_data, axis=ax)
+
+        # Broadcast gradient to original tensor shape and scale by 1/N
+        grad_output = np.broadcast_to(grad_data, x.data.shape) / num_elements
+        return Tensor(grad_output), None, None
+
+
+class Max(Operation):
+    """
+    Implements tensor max reduction with proper gradient flow.
+    """
+
+    @staticmethod
+    def forward(x, axis=None, keepdims=False):
+        """
+        Computes the maximum of tensor elements along specified axis.
+
+        Args:
+            x: Input tensor
+            axis: Axis or axes along which to find max. If None, max of all elements.
+            keepdims: Whether to keep reduced dimensions
+
+        Returns:
+            numpy.ndarray: Max result
+        """
+        return np.max(x.data, axis=axis, keepdims=keepdims)
+
+    @staticmethod
+    def backward(context, grad):
+        """
+        Distributes gradient only to elements that achieved the maximum value.
+
+        Args:
+            context: Function context containing original tensor and reduction parameters
+            grad: Gradient tensor
+
+        Returns:
+            tuple: (Gradient distributed to max elements only, None for axis parameter)
+        """
+        from punytorch.tensor import Tensor
+
+        x, axis, keepdims = context.args
+        grad_data = grad.data if hasattr(grad, "data") else grad
+
+        # Find the maximum values and create a mask
+        max_vals = np.max(x.data, axis=axis, keepdims=True)
+        max_mask = (x.data == max_vals).astype(np.float64)
+
+        # Reshape gradient to match original tensor dimensions if keepdims=False
+        if axis is not None and not keepdims:
+            if isinstance(axis, int):
+                axis = (axis,)
+            elif axis is None:
+                axis = tuple(range(x.data.ndim))
+            else:
+                axis = tuple(axis)
+
+            # Expand dimensions that were reduced
+            for ax in sorted(axis):
+                grad_data = np.expand_dims(grad_data, axis=ax)
+
+        # Broadcast gradient and apply mask (only max elements get gradient)
+        grad_broadcast = np.broadcast_to(grad_data, x.data.shape)
+
+        # Handle case where multiple elements achieve the maximum (split gradient)
+        num_max_elements = np.sum(max_mask, axis=axis, keepdims=True)
+        num_max_elements = np.where(
+            num_max_elements == 0, 1, num_max_elements
+        )  # Avoid division by zero
+
+        grad_output = grad_broadcast * max_mask / num_max_elements
+        return Tensor(grad_output), None, None

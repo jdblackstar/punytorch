@@ -197,12 +197,83 @@ class Tensor:
         return result
 
     def reshape(self, *shape):
+        """
+        Returns a tensor with the specified shape.
+
+        Args:
+            *shape: Target shape dimensions
+
+        Returns:
+            Tensor: Reshaped tensor with proper gradient tracking
+        """
         if isinstance(shape[0], tuple):
             shape = shape[0]
         curr = self.prod(self.shape)
         target = self.prod((s for s in shape if s != -1))
         shape = tuple(curr // target if s == -1 else s for s in shape)
-        return Tensor(self.data.reshape(shape), requires_grad=self.requires_grad)
+
+        result = Tensor(Reshape.forward(self, shape), requires_grad=self.requires_grad)
+        if self.requires_grad:
+            result.context = Function(Reshape, self, shape)
+        return result
+
+    """
+    REDUCTION OPS
+    """
+
+    def sum(self, axis=None, keepdims=False):
+        """
+        Returns the sum of tensor elements along specified axis.
+
+        Args:
+            axis: Axis or axes along which to sum. If None, sum all elements.
+            keepdims: Whether to keep reduced dimensions.
+
+        Returns:
+            Tensor: Sum result with proper gradient tracking.
+        """
+        result = Tensor(
+            Sum.forward(self, axis, keepdims), requires_grad=self.requires_grad
+        )
+        if self.requires_grad:
+            result.context = Function(Sum, self, axis, keepdims)
+        return result
+
+    def mean(self, axis=None, keepdims=False):
+        """
+        Returns the mean of tensor elements along specified axis.
+
+        Args:
+            axis: Axis or axes along which to compute mean. If None, mean of all elements.
+            keepdims: Whether to keep reduced dimensions.
+
+        Returns:
+            Tensor: Mean result with proper gradient tracking.
+        """
+        result = Tensor(
+            Mean.forward(self, axis, keepdims), requires_grad=self.requires_grad
+        )
+        if self.requires_grad:
+            result.context = Function(Mean, self, axis, keepdims)
+        return result
+
+    def max(self, axis=None, keepdims=False):
+        """
+        Returns the maximum of tensor elements along specified axis.
+
+        Args:
+            axis: Axis or axes along which to find max. If None, max of all elements.
+            keepdims: Whether to keep reduced dimensions.
+
+        Returns:
+            Tensor: Max result with proper gradient tracking.
+        """
+        result = Tensor(
+            Max.forward(self, axis, keepdims), requires_grad=self.requires_grad
+        )
+        if self.requires_grad:
+            result.context = Function(Max, self, axis, keepdims)
+        return result
 
     """
     BINARY OPS
@@ -263,6 +334,21 @@ class Tensor:
             result.context = Function(MatMul, self, other)
             result.requires_grad = True
         return result
+
+    # Right-hand operators for scalar operations
+    def __radd__(self, other) -> "Tensor":
+        return self.__add__(other)
+
+    def __rmul__(self, other) -> "Tensor":
+        return self.__mul__(other)
+
+    def __rsub__(self, other) -> "Tensor":
+        other = Tensor.ensure_tensor(other)
+        return other.__sub__(self)
+
+    def __rtruediv__(self, other) -> "Tensor":
+        other = Tensor.ensure_tensor(other)
+        return other.__truediv__(self)
 
     """
     UNARY OPS
