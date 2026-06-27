@@ -4,6 +4,14 @@ from punytorch.tensor import Tensor
 from punytorch.ops import Operation
 
 
+def _data(value):
+    return value.data if hasattr(value, "data") else value
+
+
+def _grad_data(value):
+    return np.asarray(_data(value), dtype=np.float64)
+
+
 class MSELoss(Operation):
     """
     Implements the Mean Squared Error (MSE) loss function for a neural network.
@@ -21,7 +29,7 @@ class MSELoss(Operation):
         Returns:
             float: The MSE loss, which is the mean of the squared differences between the predicted and true values.
         """
-        loss = np.mean((y_pred.data - y_true.data) ** 2)
+        loss = np.mean((_data(y_pred) - _data(y_true)) ** 2)
         return loss
 
     @staticmethod
@@ -38,8 +46,8 @@ class MSELoss(Operation):
         """
         y_pred, y_true = context.args
         grad_pred = 2 * (y_pred.data - y_true.data) / y_pred.data.size
-        grad_data = grad.data if hasattr(grad, "data") else grad
-        return Tensor(grad_pred * grad_data), None
+        grad_data = _grad_data(grad)
+        return grad_pred * grad_data, None
 
 
 class CrossEntropyLoss(Operation):
@@ -60,8 +68,14 @@ class CrossEntropyLoss(Operation):
         Returns:
             float: Scalar loss value
         """
+        logits_data = _data(logits)
+        targets_data = _data(targets)
+        if logits_data.ndim == 1:
+            logits_data = logits_data.reshape(1, -1)
+            targets_data = targets_data.reshape(1, -1)
+
         # Numerical stability: Subtract max logit (prevents exp overflow)
-        shifted_logits = logits.data - np.max(logits.data, axis=1, keepdims=True)
+        shifted_logits = logits_data - np.max(logits_data, axis=1, keepdims=True)
 
         # Log-softmax implementation
         exp_logits = np.exp(shifted_logits)
@@ -69,7 +83,7 @@ class CrossEntropyLoss(Operation):
         log_softmax = shifted_logits - log_sum_exp
 
         # Cross entropy is negative sum of true_probs * log_probs
-        batch_losses = -np.sum(targets.data * log_softmax, axis=1)
+        batch_losses = -np.sum(targets_data * log_softmax, axis=1)
         loss = np.mean(batch_losses)
 
         return loss
@@ -88,17 +102,25 @@ class CrossEntropyLoss(Operation):
         """
         logits, targets = context.args
 
+        logits_data = logits.data
+        targets_data = targets.data
+        original_shape = logits_data.shape
+        if logits_data.ndim == 1:
+            logits_data = logits_data.reshape(1, -1)
+            targets_data = targets_data.reshape(1, -1)
+
         # Compute softmax (reuse the stability trick)
-        shifted_logits = logits.data - np.max(logits.data, axis=1, keepdims=True)
+        shifted_logits = logits_data - np.max(logits_data, axis=1, keepdims=True)
         exp_logits = np.exp(shifted_logits)
         softmax = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
 
         # Gradient is (softmax - targets) / batch_size
-        batch_size = logits.shape[0]
-        grad_logits = (softmax - targets.data) / batch_size
+        batch_size = logits_data.shape[0]
+        grad_logits = (softmax - targets_data) / batch_size
+        grad_logits = grad_logits.reshape(original_shape)
 
         # Scale by upstream gradient and return as Tensor
-        return Tensor(grad_logits * grad.data), None
+        return grad_logits * _grad_data(grad), None
 
 
 class BinaryCrossEntropyLoss(Operation):
@@ -120,10 +142,12 @@ class BinaryCrossEntropyLoss(Operation):
         """
         # Add small epsilon for numerical stability
         epsilon = 1e-15
-        y_pred_clipped = np.clip(y_pred.data, epsilon, 1 - epsilon)
+        y_pred_data = _data(y_pred)
+        y_true_data = _data(y_true)
+        y_pred_clipped = np.clip(y_pred_data, epsilon, 1 - epsilon)
         loss = -np.mean(
-            y_true.data * np.log(y_pred_clipped)
-            + (1 - y_true.data) * np.log(1 - y_pred_clipped)
+            y_true_data * np.log(y_pred_clipped)
+            + (1 - y_true_data) * np.log(1 - y_pred_clipped)
         )
         return loss
 
@@ -145,8 +169,8 @@ class BinaryCrossEntropyLoss(Operation):
         grad_pred = (y_pred_clipped - y_true.data) / (
             y_pred_clipped * (1 - y_pred_clipped)
         )
-        grad_data = grad.data if hasattr(grad, "data") else grad
-        return Tensor(grad_pred * grad_data / y_pred.data.size), None
+        grad_data = _grad_data(grad)
+        return grad_pred * grad_data / y_pred.data.size, None
 
 
 class CategoricalCrossEntropyLoss(Operation):
@@ -168,8 +192,8 @@ class CategoricalCrossEntropyLoss(Operation):
         """
         # Add small epsilon for numerical stability
         epsilon = 1e-15
-        y_pred_clipped = np.clip(y_pred.data, epsilon, 1 - epsilon)
-        loss = -np.sum(y_true.data * np.log(y_pred_clipped))
+        y_pred_clipped = np.clip(_data(y_pred), epsilon, 1 - epsilon)
+        loss = -np.sum(_data(y_true) * np.log(y_pred_clipped))
         return loss
 
     @staticmethod
@@ -188,5 +212,5 @@ class CategoricalCrossEntropyLoss(Operation):
         epsilon = 1e-15
         y_pred_clipped = np.clip(y_pred.data, epsilon, 1 - epsilon)
         grad_pred = -y_true.data / y_pred_clipped
-        grad_data = grad.data if hasattr(grad, "data") else grad
-        return Tensor(grad_pred * grad_data), None
+        grad_data = _grad_data(grad)
+        return grad_pred * grad_data, None
