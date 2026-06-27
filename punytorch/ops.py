@@ -1,15 +1,6 @@
 import numpy as np
 
 
-def _data(value):
-    return value.data if hasattr(value, "data") else value
-
-
-def _grad_data(value):
-    value = _data(value)
-    return np.asarray(value, dtype=np.float64)
-
-
 def _normalize_axis(axis, ndim):
     if axis is None:
         return None
@@ -55,7 +46,7 @@ class Function:
 class Operation:
     """
     Operation contract:
-    - forward receives Tensor inputs and returns NumPy-compatible data.
+    - forward receives NumPy inputs and returns NumPy-compatible data.
     - backward receives the original Function context plus an upstream gradient
       array and returns one gradient array, or None, per forward argument.
     """
@@ -73,7 +64,7 @@ class Add(Operation):
         """
         z = x + y
         """
-        return x.data + y.data
+        return x + y
 
     @staticmethod
     def backward(context, grad):
@@ -84,7 +75,7 @@ class Add(Operation):
         return grad for both x and y
         """
         x, y = context.args
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         return _unbroadcast(grad_data, x.data.shape), _unbroadcast(grad_data, y.data.shape)
 
 
@@ -94,7 +85,7 @@ class Sub(Operation):
         """
         z = x - y
         """
-        return x.data - y.data
+        return x - y
 
     @staticmethod
     def backward(context, grad):
@@ -106,7 +97,7 @@ class Sub(Operation):
         return [-1] for y
         """
         x, y = context.args
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         return _unbroadcast(grad_data, x.data.shape), _unbroadcast(-grad_data, y.data.shape)
 
 
@@ -116,7 +107,7 @@ class Mul(Operation):
         """
         z = x * y
         """
-        return x.data * y.data
+        return x * y
 
     @staticmethod
     def backward(context, grad):
@@ -128,7 +119,7 @@ class Mul(Operation):
         return (x.data * grad.data) for y
         """
         x, y = context.args
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         return (
             _unbroadcast(grad_data * y.data, x.data.shape),
             _unbroadcast(grad_data * x.data, y.data.shape),
@@ -141,7 +132,7 @@ class TrueDiv(Operation):
         """
         z = x / y
         """
-        return x.data / y.data
+        return x / y
 
     @staticmethod
     def backward(context, grad):
@@ -153,7 +144,7 @@ class TrueDiv(Operation):
         return (-grad.data * x.data / (y.data ** 2)) for y
         """
         x, y = context.args
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         return (
             _unbroadcast(grad_data / y.data, x.data.shape),
             _unbroadcast(-grad_data * x.data / (y.data**2), y.data.shape),
@@ -175,7 +166,7 @@ class Mod(Operation):
         """
         z = x % y
         """
-        return x.data % y.data
+        return x % y
 
     @staticmethod
     def backward(context, grad):
@@ -187,7 +178,7 @@ class Mod(Operation):
         return an array of zerose like y.data for y
         """
         x, y = context.args
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         return _unbroadcast(grad_data, x.data.shape), np.zeros_like(y.data, dtype=np.float64)
 
 
@@ -197,7 +188,7 @@ class Pow(Operation):
         """
         z = x ^ y
         """
-        return x.data**y.data
+        return x**y
 
     @staticmethod
     def backward(context, grad):
@@ -209,7 +200,7 @@ class Pow(Operation):
         return grad * (x**y * np.log(x.data)) for y
         """
         x, y = context.args
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         result = x.data**y.data
         grad_x = grad_data * y.data * (x.data ** (y.data - 1))
         grad_y = grad_data * result * np.log(x.data)
@@ -222,7 +213,7 @@ class MatMul(Operation):
         """
         z = x @ y
         """
-        return x.data @ y.data
+        return x @ y
 
     @staticmethod
     def backward(context, grad):
@@ -232,7 +223,7 @@ class MatMul(Operation):
         d(Z)/dY = X.T @ grad
         """
         x, y = context.args
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         grad_x = grad_data @ np.swapaxes(y.data, -1, -2)
         grad_y = np.swapaxes(x.data, -1, -2) @ grad_data
         return _unbroadcast(grad_x, x.data.shape), _unbroadcast(grad_y, y.data.shape)
@@ -244,7 +235,7 @@ class Tanh(Operation):
         """
         z = tanh(x)
         """
-        return np.tanh(x.data)
+        return np.tanh(x)
 
     @staticmethod
     def backward(context, grad):
@@ -254,7 +245,7 @@ class Tanh(Operation):
         return (1 - tanh(x)^2) * grad
         """
         x = context.args[0].data
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         grad_tanh = 1 - np.tanh(x) ** 2
         return (grad_tanh * grad_data,)
 
@@ -269,7 +260,7 @@ class Transpose(Operation):
         """
         z = x.T (transpose of x)
         """
-        return np.transpose(x.data, axes=axes)
+        return np.transpose(x, axes=axes)
 
     @staticmethod
     def backward(context, grad):
@@ -278,7 +269,7 @@ class Transpose(Operation):
         The gradient simply needs to be transposed back.
         """
         _, axes = context.args
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         if axes is None:
             return np.transpose(grad_data), None
         inverse_axes = np.argsort(axes)
@@ -302,7 +293,7 @@ class Reshape(Operation):
         Returns:
             numpy.ndarray: Reshaped tensor data
         """
-        return x.data.reshape(tuple(shape))
+        return x.reshape(tuple(shape))
 
     @staticmethod
     def backward(context, grad):
@@ -317,7 +308,7 @@ class Reshape(Operation):
             tuple: (Gradient reshaped to original shape, None for shape parameter)
         """
         x, _ = context.args
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         return grad_data.reshape(x.shape), None
 
 
@@ -339,7 +330,7 @@ class Sum(Operation):
         Returns:
             numpy.ndarray: Sum result
         """
-        return np.sum(x.data, axis=axis, keepdims=keepdims)
+        return np.sum(x, axis=axis, keepdims=keepdims)
 
     @staticmethod
     def backward(context, grad):
@@ -354,7 +345,7 @@ class Sum(Operation):
             tuple: (Gradient distributed to original shape, None for axis parameter)
         """
         x, axis, keepdims = context.args
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         normalized_axis = _normalize_axis(axis, x.data.ndim)
 
         # Reshape gradient to match original tensor dimensions if keepdims=False
@@ -386,7 +377,7 @@ class Mean(Operation):
         Returns:
             numpy.ndarray: Mean result
         """
-        return np.mean(x.data, axis=axis, keepdims=keepdims)
+        return np.mean(x, axis=axis, keepdims=keepdims)
 
     @staticmethod
     def backward(context, grad):
@@ -401,7 +392,7 @@ class Mean(Operation):
             tuple: (Gradient distributed to original shape, None for axis parameter)
         """
         x, axis, keepdims = context.args
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         normalized_axis = _normalize_axis(axis, x.data.ndim)
 
         # Calculate the number of elements that contributed to the mean
@@ -441,7 +432,7 @@ class Max(Operation):
         Returns:
             numpy.ndarray: Max result
         """
-        return np.max(x.data, axis=axis, keepdims=keepdims)
+        return np.max(x, axis=axis, keepdims=keepdims)
 
     @staticmethod
     def backward(context, grad):
@@ -456,7 +447,7 @@ class Max(Operation):
             tuple: (Gradient distributed to max elements only, None for axis parameter)
         """
         x, axis, keepdims = context.args
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         normalized_axis = _normalize_axis(axis, x.data.ndim)
 
         # Find the maximum values and create a mask
@@ -474,9 +465,7 @@ class Max(Operation):
 
         # Handle case where multiple elements achieve the maximum (split gradient)
         num_max_elements = np.sum(max_mask, axis=axis, keepdims=True)
-        num_max_elements = np.where(
-            num_max_elements == 0, 1, num_max_elements
-        )  # Avoid division by zero
+        num_max_elements = np.where(num_max_elements == 0, 1, num_max_elements)  # Avoid division by zero
 
         grad_output = grad_broadcast * max_mask / num_max_elements
         return grad_output, None, None

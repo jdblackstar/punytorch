@@ -118,7 +118,7 @@ class Module:
                 raise KeyError(f"Key {key} not found in module's state.")
             return child
 
-        def _value_data(value):
+        def _as_array_copy(value):
             if isinstance(value, Tensor):
                 return value.data.copy()
             return np.array(value, copy=True)
@@ -134,7 +134,7 @@ class Module:
                 raise KeyError(f"Key {key} not found in module's state.")
             attr = getattr(root, name)
             if isinstance(attr, Parameter):
-                data = _value_data(value)
+                data = _as_array_copy(value)
                 if attr.data.shape != data.shape:
                     raise ValueError(f"Shape mismatch for {key}: expected {attr.data.shape}, got {data.shape}.")
                 attr.data = data

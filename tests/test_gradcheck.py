@@ -3,7 +3,6 @@ import pytest
 
 from punytorch.tensor import Tensor
 
-
 EPS = 1e-6
 ATOL = 2e-5
 RTOL = 2e-5
@@ -22,10 +21,7 @@ def _scalar_value(output, upstream):
 
 
 def _make_tensors(arrays, wrt):
-    return [
-        Tensor(array.copy(), requires_grad=index in wrt)
-        for index, array in enumerate(arrays)
-    ]
+    return [Tensor(array.copy(), requires_grad=index in wrt) for index, array in enumerate(arrays)]
 
 
 def _finite_difference(fn, arrays, arg_index, upstream):
@@ -39,9 +35,7 @@ def _finite_difference(fn, arrays, arg_index, upstream):
 
         plus_output = fn(*_make_tensors(plus, wrt=()))
         minus_output = fn(*_make_tensors(minus, wrt=()))
-        expected[index] = (_scalar_value(plus_output, upstream) - _scalar_value(minus_output, upstream)) / (
-            2 * EPS
-        )
+        expected[index] = (_scalar_value(plus_output, upstream) - _scalar_value(minus_output, upstream)) / (2 * EPS)
 
     return expected
 
