@@ -1,5 +1,7 @@
 import numpy as np
 
+from punytorch.tensor import Tensor
+
 
 class Optimizer:
     """
@@ -13,7 +15,19 @@ class Optimizer:
         Args:
             params (iterable): An iterable of Parameters that define what to optimize.
         """
-        self.params = params
+        self.params = list(params)
+
+    @staticmethod
+    def _as_array(value):
+        if isinstance(value, Tensor):
+            return value.data
+        return np.asarray(value)
+
+    @classmethod
+    def _grad_array(cls, param):
+        if param.grad is None:
+            return None
+        return cls._as_array(param.grad)
 
     def zero_grad(self):
         """
@@ -22,8 +36,9 @@ class Optimizer:
         This is typically used when you start to compute gradients for the next optimization step.
         """
         for param in self.params:
-            if param.grad is not None:
-                param.grad = np.zeros_like(param.grad)
+            grad = self._grad_array(param)
+            if grad is not None:
+                param.grad = np.zeros_like(grad)
 
     def step(self):
         """
@@ -62,7 +77,10 @@ class SGD(Optimizer):
         the learning rate times the parameter's gradient.
         """
         for param in self.params:
-            param.data -= self.lr * param.grad
+            grad = self._grad_array(param)
+            if grad is None:
+                continue
+            param.data -= self.lr * grad
 
 
 class Adam(Optimizer):
@@ -102,11 +120,9 @@ class Adam(Optimizer):
         """
         self.t += 1
         for i, param in enumerate(self.params):
-            if param.grad is None:
+            grad_data = self._grad_array(param)
+            if grad_data is None:
                 continue
-            grad_data = np.array(
-                param.grad.data
-            )  # Convert the memoryview to a numpy array
             self.m[i] = self.betas[0] * self.m[i] + (1 - self.betas[0]) * grad_data
             self.v[i] = self.betas[1] * self.v[i] + (1 - self.betas[1]) * (grad_data**2)
             m_hat = self.m[i] / (1 - self.betas[0] ** self.t)
@@ -146,10 +162,11 @@ class RMSProp(Optimizer):
         For each parameter in the list, the parameter's data is updated in-place using the RMSProp update rule.
         """
         for i, param in enumerate(self.params):
-            if param.grad is None:
+            grad = self._grad_array(param)
+            if grad is None:
                 continue
-            self.v[i] = self.alpha * self.v[i] + (1 - self.alpha) * (param.grad**2)
-            param.data -= self.lr * param.grad / (np.sqrt(self.v[i]) + self.eps)
+            self.v[i] = self.alpha * self.v[i] + (1 - self.alpha) * (grad**2)
+            param.data -= self.lr * grad / (np.sqrt(self.v[i]) + self.eps)
 
 
 class Adagrad(Optimizer):
@@ -183,10 +200,11 @@ class Adagrad(Optimizer):
         For each parameter in the list, the parameter's data is updated in-place using the Adagrad update rule.
         """
         for i, param in enumerate(self.params):
-            if param.grad is None:
+            grad = self._grad_array(param)
+            if grad is None:
                 continue
-            self.G[i] += param.grad**2
-            param.data -= self.lr / np.sqrt(self.G[i] + self.eps) * param.grad
+            self.G[i] += grad**2
+            param.data -= self.lr / np.sqrt(self.G[i] + self.eps) * grad
 
 
 class Adadelta(Optimizer):
@@ -221,13 +239,11 @@ class Adadelta(Optimizer):
         For each parameter in the list, the parameter's data is updated in-place using the Adadelta update rule.
         """
         for i, param in enumerate(self.params):
-            if param.grad is None:
+            grad = self._grad_array(param)
+            if grad is None:
                 continue
-            self.Eg[i] = self.rho * self.Eg[i] + (1 - self.rho) * param.grad**2
-            delta = (
-                np.sqrt((self.Edelta[i] + self.eps) / (self.Eg[i] + self.eps))
-                * param.grad
-            )
+            self.Eg[i] = self.rho * self.Eg[i] + (1 - self.rho) * grad**2
+            delta = np.sqrt((self.Edelta[i] + self.eps) / (self.Eg[i] + self.eps)) * grad
             self.Edelta[i] = self.rho * self.Edelta[i] + (1 - self.rho) * delta**2
             param.data -= delta
 
@@ -268,12 +284,9 @@ class Adamax(Optimizer):
         """
         self.t += 1
         for i, param in enumerate(self.params):
-            if param.grad is None:
+            grad = self._grad_array(param)
+            if grad is None:
                 continue
-            self.m[i] = self.betas[0] * self.m[i] + (1 - self.betas[0]) * param.grad
-            self.u[i] = np.maximum(self.betas[1] * self.u[i], np.abs(param.grad))
-            param.data -= (
-                (self.lr / (1 - self.betas[0] ** self.t))
-                * self.m[i]
-                / (self.u[i] + self.eps)
-            )
+            self.m[i] = self.betas[0] * self.m[i] + (1 - self.betas[0]) * grad
+            self.u[i] = np.maximum(self.betas[1] * self.u[i], np.abs(grad))
+            param.data -= (self.lr / (1 - self.betas[0] ** self.t)) * self.m[i] / (self.u[i] + self.eps)

@@ -2,6 +2,14 @@ import numpy as np
 from punytorch.ops import Operation
 
 
+def _data(value):
+    return value.data if hasattr(value, "data") else value
+
+
+def _grad_data(value):
+    return np.asarray(_data(value), dtype=np.float64)
+
+
 class ReLU(Operation):
     """
     Implements the ReLU (Rectified Linear Unit) activation function for a neural network.
@@ -18,7 +26,7 @@ class ReLU(Operation):
         Returns:
             numpy.ndarray: The output after applying the ReLU function, which is max(0, x).
         """
-        return np.maximum(0, x.data)
+        return np.maximum(0, _data(x))
 
     @staticmethod
     def backward(context, grad):
@@ -33,13 +41,11 @@ class ReLU(Operation):
             tuple: A tuple where the first element is the gradient of the loss with respect to the input,
                    and the second element is None (since ReLU has no parameters to update).
         """
-        from punytorch.tensor import Tensor
-
         x = context.args[0].data
         # grad wasn't broadcasting to the same shape as x, so:
-        grad_data = grad.data if isinstance(grad, Tensor) else grad
+        grad_data = _grad_data(grad)
         grad_data = np.ones_like(x) if np.isscalar(grad_data) else grad_data
-        return Tensor((x > 0).astype(np.float64) * grad_data), None
+        return ((x > 0).astype(np.float64) * grad_data,)
 
 
 class Sigmoid(Operation):
@@ -58,7 +64,8 @@ class Sigmoid(Operation):
         Returns:
             numpy.ndarray: The output after applying the Sigmoid function, which is 1 / (1 + exp(-x)).
         """
-        return 1 / (1 + np.exp(-x.data))
+        input_data = _data(x)
+        return 1 / (1 + np.exp(-input_data))
 
     @staticmethod
     def backward(context, grad):
@@ -73,12 +80,10 @@ class Sigmoid(Operation):
             tuple: A tuple where the first element is the gradient of the loss with respect to the input,
                    and the second element is None (since Sigmoid has no parameters to update).
         """
-        from punytorch.tensor import Tensor
-
         x = context.args[0].data
         sigmoid_x = 1 / (1 + np.exp(-x))
-        grad_data = grad.data if isinstance(grad, Tensor) else grad
-        return Tensor(sigmoid_x * (1 - sigmoid_x) * grad_data), None
+        grad_data = _grad_data(grad)
+        return (sigmoid_x * (1 - sigmoid_x) * grad_data,)
 
 
 class Softmax(Operation):
@@ -101,7 +106,7 @@ class Softmax(Operation):
         """
         if dim is None:
             dim = -1
-        input_data = x.data if hasattr(x, "data") else x
+        input_data = _data(x)
         e_x = np.exp(
             input_data - np.max(input_data, axis=dim, keepdims=True)
         )  # subtract max(x) for numerical stability
@@ -124,18 +129,11 @@ class Softmax(Operation):
         Returns:
             numpy.ndarray: The gradient of the loss with respect to the input.
         """
-        from punytorch.tensor import Tensor
-
-        x = context.args[0].data
-        softmax_x = np.exp(x - np.max(x))
-        softmax_x /= np.sum(softmax_x, axis=0)
-        grad_data = grad.data if isinstance(grad, Tensor) else grad
-        grad_data = np.ones_like(x) if np.isscalar(grad_data) else grad_data
-        grad_input = np.zeros_like(x)
-        for i in range(len(x)):
-            for j in range(len(x)):
-                if i == j:
-                    grad_input[i] += grad_data[j] * softmax_x[i] * (1 - softmax_x[j])
-                else:
-                    grad_input[i] -= grad_data[j] * softmax_x[i] * softmax_x[j]
-        return Tensor(grad_input), None
+        x, dim = context.args
+        dim = -1 if dim is None else dim
+        softmax_x = Softmax.forward(x, dim=dim)
+        grad_data = _grad_data(grad)
+        grad_input = softmax_x * (
+            grad_data - np.sum(grad_data * softmax_x, axis=dim, keepdims=True)
+        )
+        return grad_input, None

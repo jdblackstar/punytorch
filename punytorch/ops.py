@@ -1,6 +1,39 @@
 import numpy as np
 
 
+def _data(value):
+    return value.data if hasattr(value, "data") else value
+
+
+def _grad_data(value):
+    value = _data(value)
+    return np.asarray(value, dtype=np.float64)
+
+
+def _normalize_axis(axis, ndim):
+    if axis is None:
+        return None
+    if isinstance(axis, int):
+        axis = (axis,)
+    return tuple(ax if ax >= 0 else ndim + ax for ax in axis)
+
+
+def _unbroadcast(grad, shape):
+    grad = np.asarray(grad, dtype=np.float64)
+
+    if shape == ():
+        return np.asarray(grad.sum(), dtype=np.float64)
+
+    while grad.ndim > len(shape):
+        grad = grad.sum(axis=0)
+
+    for axis, size in enumerate(shape):
+        if size == 1 and grad.shape[axis] != 1:
+            grad = grad.sum(axis=axis, keepdims=True)
+
+    return grad.reshape(shape)
+
+
 class Function:
     def __init__(self, op, *args):
         self.op = op
@@ -20,6 +53,13 @@ class Function:
 
 
 class Operation:
+    """
+    Operation contract:
+    - forward receives Tensor inputs and returns NumPy-compatible data.
+    - backward receives the original Function context plus an upstream gradient
+      array and returns one gradient array, or None, per forward argument.
+    """
+
     def forward(self, *args):
         raise NotImplementedError
 
@@ -44,31 +84,8 @@ class Add(Operation):
         return grad for both x and y
         """
         x, y = context.args
-        from punytorch.tensor import Tensor
-
-        # For x gradient
-        grad_x_data = grad.data
-        # Sum over dimensions that were broadcast
-        ndims_added = grad_x_data.ndim - x.data.ndim
-        for i in range(ndims_added):
-            grad_x_data = np.sum(grad_x_data, axis=0)
-        # Sum over dimensions that were broadcast from size 1
-        for i, (dim, grad_dim) in enumerate(zip(x.data.shape, grad_x_data.shape)):
-            if dim == 1 and grad_dim > 1:
-                grad_x_data = np.sum(grad_x_data, axis=i, keepdims=True)
-
-        # For y gradient
-        grad_y_data = grad.data
-        # Sum over dimensions that were broadcast
-        ndims_added = grad_y_data.ndim - y.data.ndim
-        for i in range(ndims_added):
-            grad_y_data = np.sum(grad_y_data, axis=0)
-        # Sum over dimensions that were broadcast from size 1
-        for i, (dim, grad_dim) in enumerate(zip(y.data.shape, grad_y_data.shape)):
-            if dim == 1 and grad_dim > 1:
-                grad_y_data = np.sum(grad_y_data, axis=i, keepdims=True)
-
-        return Tensor(grad_x_data), Tensor(grad_y_data)
+        grad_data = _grad_data(grad)
+        return _unbroadcast(grad_data, x.data.shape), _unbroadcast(grad_data, y.data.shape)
 
 
 class Sub(Operation):
@@ -88,7 +105,9 @@ class Sub(Operation):
         return [1] for x
         return [-1] for y
         """
-        return grad, -grad
+        x, y = context.args
+        grad_data = _grad_data(grad)
+        return _unbroadcast(grad_data, x.data.shape), _unbroadcast(-grad_data, y.data.shape)
 
 
 class Mul(Operation):
@@ -109,7 +128,11 @@ class Mul(Operation):
         return (x.data * grad.data) for y
         """
         x, y = context.args
-        return y * grad, x * grad
+        grad_data = _grad_data(grad)
+        return (
+            _unbroadcast(grad_data * y.data, x.data.shape),
+            _unbroadcast(grad_data * x.data, y.data.shape),
+        )
 
 
 class TrueDiv(Operation):
@@ -130,9 +153,11 @@ class TrueDiv(Operation):
         return (-grad.data * x.data / (y.data ** 2)) for y
         """
         x, y = context.args
-        grad_x = grad / y
-        grad_y = -grad * x / (y * y)
-        return grad_x, grad_y
+        grad_data = _grad_data(grad)
+        return (
+            _unbroadcast(grad_data / y.data, x.data.shape),
+            _unbroadcast(-grad_data * x.data / (y.data**2), y.data.shape),
+        )
 
 
 class Mod(Operation):
@@ -162,7 +187,8 @@ class Mod(Operation):
         return an array of zerose like y.data for y
         """
         x, y = context.args
-        return grad, 0
+        grad_data = _grad_data(grad)
+        return _unbroadcast(grad_data, x.data.shape), np.zeros_like(y.data, dtype=np.float64)
 
 
 class Pow(Operation):
@@ -182,12 +208,12 @@ class Pow(Operation):
         return grad * (y * x ** (y - 1)) for x
         return grad * (x**y * np.log(x.data)) for y
         """
-        from punytorch.tensor import Tensor
-
         x, y = context.args
-        grad_x = grad * (y * x ** (y - 1))
-        grad_y = grad * (x**y * Tensor(np.log(x.data)))
-        return grad_x, grad_y
+        grad_data = _grad_data(grad)
+        result = x.data**y.data
+        grad_x = grad_data * y.data * (x.data ** (y.data - 1))
+        grad_y = grad_data * result * np.log(x.data)
+        return _unbroadcast(grad_x, x.data.shape), _unbroadcast(grad_y, y.data.shape)
 
 
 class MatMul(Operation):
@@ -206,7 +232,10 @@ class MatMul(Operation):
         d(Z)/dY = X.T @ grad
         """
         x, y = context.args
-        return grad @ y.T, x.T @ grad
+        grad_data = _grad_data(grad)
+        grad_x = grad_data @ np.swapaxes(y.data, -1, -2)
+        grad_y = np.swapaxes(x.data, -1, -2) @ grad_data
+        return _unbroadcast(grad_x, x.data.shape), _unbroadcast(grad_y, y.data.shape)
 
 
 class Tanh(Operation):
@@ -215,7 +244,7 @@ class Tanh(Operation):
         """
         z = tanh(x)
         """
-        return np.tanh(x)
+        return np.tanh(x.data)
 
     @staticmethod
     def backward(context, grad):
@@ -224,12 +253,10 @@ class Tanh(Operation):
 
         return (1 - tanh(x)^2) * grad
         """
-        from punytorch.tensor import Tensor
-
         x = context.args[0].data
-        grad_data = grad.data if isinstance(grad, Tensor) else grad
+        grad_data = _grad_data(grad)
         grad_tanh = 1 - np.tanh(x) ** 2
-        return (Tensor(grad_tanh * grad_data),)
+        return (grad_tanh * grad_data,)
 
 
 class Transpose(Operation):
@@ -238,11 +265,11 @@ class Transpose(Operation):
     """
 
     @staticmethod
-    def forward(x):
+    def forward(x, axes=None):
         """
         z = x.T (transpose of x)
         """
-        return np.transpose(x.data)
+        return np.transpose(x.data, axes=axes)
 
     @staticmethod
     def backward(context, grad):
@@ -250,11 +277,12 @@ class Transpose(Operation):
         If Z = X.T, then d(Z)/dX = grad.T
         The gradient simply needs to be transposed back.
         """
-        from punytorch.tensor import Tensor
-
-        # Transpose the gradient back
-        grad_data = grad.data if isinstance(grad, Tensor) else grad
-        return (Tensor(np.transpose(grad_data)),)
+        _, axes = context.args
+        grad_data = _grad_data(grad)
+        if axes is None:
+            return np.transpose(grad_data), None
+        inverse_axes = np.argsort(axes)
+        return np.transpose(grad_data, axes=inverse_axes), None
 
 
 class Reshape(Operation):
@@ -288,11 +316,9 @@ class Reshape(Operation):
         Returns:
             tuple: (Gradient reshaped to original shape, None for shape parameter)
         """
-        from punytorch.tensor import Tensor
-
         x, _ = context.args
-        grad_data = grad.data if hasattr(grad, "data") else grad
-        return Tensor(grad_data.reshape(x.shape)), None
+        grad_data = _grad_data(grad)
+        return grad_data.reshape(x.shape), None
 
 
 class Sum(Operation):
@@ -327,28 +353,19 @@ class Sum(Operation):
         Returns:
             tuple: (Gradient distributed to original shape, None for axis parameter)
         """
-        from punytorch.tensor import Tensor
-
         x, axis, keepdims = context.args
-        grad_data = grad.data if hasattr(grad, "data") else grad
+        grad_data = _grad_data(grad)
+        normalized_axis = _normalize_axis(axis, x.data.ndim)
 
         # Reshape gradient to match original tensor dimensions if keepdims=False
-        if axis is not None and not keepdims:
-            # Add back the reduced dimensions
-            if isinstance(axis, int):
-                axis = (axis,)
-            elif axis is None:
-                axis = tuple(range(x.data.ndim))
-            else:
-                axis = tuple(axis)
-
+        if normalized_axis is not None and not keepdims:
             # Expand dimensions that were reduced
-            for ax in sorted(axis):
+            for ax in sorted(normalized_axis):
                 grad_data = np.expand_dims(grad_data, axis=ax)
 
         # Broadcast gradient to original tensor shape
         grad_output = np.broadcast_to(grad_data, x.data.shape)
-        return Tensor(grad_output), None, None
+        return grad_output, None, None
 
 
 class Mean(Operation):
@@ -383,36 +400,27 @@ class Mean(Operation):
         Returns:
             tuple: (Gradient distributed to original shape, None for axis parameter)
         """
-        from punytorch.tensor import Tensor
-
         x, axis, keepdims = context.args
-        grad_data = grad.data if hasattr(grad, "data") else grad
+        grad_data = _grad_data(grad)
+        normalized_axis = _normalize_axis(axis, x.data.ndim)
 
         # Calculate the number of elements that contributed to the mean
-        if axis is None:
+        if normalized_axis is None:
             num_elements = x.data.size
+        elif len(normalized_axis) == 1:
+            num_elements = x.data.shape[normalized_axis[0]]
         else:
-            if isinstance(axis, int):
-                num_elements = x.data.shape[axis]
-            else:
-                num_elements = np.prod([x.data.shape[ax] for ax in axis])
+            num_elements = np.prod([x.data.shape[ax] for ax in normalized_axis])
 
         # Reshape gradient to match original tensor dimensions if keepdims=False
-        if axis is not None and not keepdims:
-            if isinstance(axis, int):
-                axis = (axis,)
-            elif axis is None:
-                axis = tuple(range(x.data.ndim))
-            else:
-                axis = tuple(axis)
-
+        if normalized_axis is not None and not keepdims:
             # Expand dimensions that were reduced
-            for ax in sorted(axis):
+            for ax in sorted(normalized_axis):
                 grad_data = np.expand_dims(grad_data, axis=ax)
 
         # Broadcast gradient to original tensor shape and scale by 1/N
         grad_output = np.broadcast_to(grad_data, x.data.shape) / num_elements
-        return Tensor(grad_output), None, None
+        return grad_output, None, None
 
 
 class Max(Operation):
@@ -447,26 +455,18 @@ class Max(Operation):
         Returns:
             tuple: (Gradient distributed to max elements only, None for axis parameter)
         """
-        from punytorch.tensor import Tensor
-
         x, axis, keepdims = context.args
-        grad_data = grad.data if hasattr(grad, "data") else grad
+        grad_data = _grad_data(grad)
+        normalized_axis = _normalize_axis(axis, x.data.ndim)
 
         # Find the maximum values and create a mask
         max_vals = np.max(x.data, axis=axis, keepdims=True)
         max_mask = (x.data == max_vals).astype(np.float64)
 
         # Reshape gradient to match original tensor dimensions if keepdims=False
-        if axis is not None and not keepdims:
-            if isinstance(axis, int):
-                axis = (axis,)
-            elif axis is None:
-                axis = tuple(range(x.data.ndim))
-            else:
-                axis = tuple(axis)
-
+        if normalized_axis is not None and not keepdims:
             # Expand dimensions that were reduced
-            for ax in sorted(axis):
+            for ax in sorted(normalized_axis):
                 grad_data = np.expand_dims(grad_data, axis=ax)
 
         # Broadcast gradient and apply mask (only max elements get gradient)
@@ -479,4 +479,4 @@ class Max(Operation):
         )  # Avoid division by zero
 
         grad_output = grad_broadcast * max_mask / num_max_elements
-        return Tensor(grad_output), None, None
+        return grad_output, None, None

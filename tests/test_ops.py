@@ -18,8 +18,8 @@ def test_Add():
 
     # backward test
     z.backward(Tensor(np.ones_like(z.data)))
-    assert np.all(x.grad.data == np.array([1]))
-    assert np.all(y.grad.data == np.array([1]))
+    assert np.all(x.grad == np.array([1]))
+    assert np.all(y.grad == np.array([1]))
 
 
 def test_Sub():
@@ -37,8 +37,8 @@ def test_Sub():
 
     # backward test
     z.backward(Tensor(np.ones_like(z.data)))
-    assert np.all(x.grad.data == np.array([1]))
-    assert np.all(y.grad.data == np.array([-1]))
+    assert np.all(x.grad == np.array([1]))
+    assert np.all(y.grad == np.array([-1]))
 
 
 def test_Mul():
@@ -56,8 +56,8 @@ def test_Mul():
 
     # backward test
     z.backward(Tensor(np.ones_like(z.data)))
-    assert np.all(x.grad.data == np.array([5]))
-    assert np.all(y.grad.data == np.array([8]))
+    assert np.all(x.grad == np.array([5]))
+    assert np.all(y.grad == np.array([8]))
 
 
 def test_TrueDiv():
@@ -75,8 +75,8 @@ def test_TrueDiv():
 
     # backward test
     z.backward(Tensor(np.ones_like(z.data)))
-    assert np.allclose(x.grad.data, np.array([1 / 2]))
-    assert np.allclose(y.grad.data, np.array([-8 / 4]))
+    assert np.allclose(x.grad, np.array([1 / 2]))
+    assert np.allclose(y.grad, np.array([-8 / 4]))
 
 
 def test_MatMul():
@@ -94,5 +94,5 @@ def test_MatMul():
 
     # backward test
     z.backward(Tensor(np.ones_like(z.data)))
-    assert np.allclose(x.grad.data, np.array([[15, 19, 23], [15, 19, 23]]))
-    assert np.allclose(y.grad.data, np.array([[5, 5], [7, 7], [9, 9]]))
+    assert np.allclose(x.grad, np.array([[15, 19, 23], [15, 19, 23]]))
+    assert np.allclose(y.grad, np.array([[5, 5], [7, 7], [9, 9]]))
