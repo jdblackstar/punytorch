@@ -2,14 +2,6 @@ import numpy as np
 from punytorch.ops import Operation
 
 
-def _data(value):
-    return value.data if hasattr(value, "data") else value
-
-
-def _grad_data(value):
-    return np.asarray(_data(value), dtype=np.float64)
-
-
 class ReLU(Operation):
     """
     Implements the ReLU (Rectified Linear Unit) activation function for a neural network.
@@ -26,7 +18,7 @@ class ReLU(Operation):
         Returns:
             numpy.ndarray: The output after applying the ReLU function, which is max(0, x).
         """
-        return np.maximum(0, _data(x))
+        return np.maximum(0, x)
 
     @staticmethod
     def backward(context, grad):
@@ -43,7 +35,7 @@ class ReLU(Operation):
         """
         x = context.args[0].data
         # grad wasn't broadcasting to the same shape as x, so:
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         grad_data = np.ones_like(x) if np.isscalar(grad_data) else grad_data
         return ((x > 0).astype(np.float64) * grad_data,)
 
@@ -64,8 +56,7 @@ class Sigmoid(Operation):
         Returns:
             numpy.ndarray: The output after applying the Sigmoid function, which is 1 / (1 + exp(-x)).
         """
-        input_data = _data(x)
-        return 1 / (1 + np.exp(-input_data))
+        return 1 / (1 + np.exp(-x))
 
     @staticmethod
     def backward(context, grad):
@@ -82,7 +73,7 @@ class Sigmoid(Operation):
         """
         x = context.args[0].data
         sigmoid_x = 1 / (1 + np.exp(-x))
-        grad_data = _grad_data(grad)
+        grad_data = np.asarray(grad, dtype=np.float64)
         return (sigmoid_x * (1 - sigmoid_x) * grad_data,)
 
 
@@ -106,10 +97,7 @@ class Softmax(Operation):
         """
         if dim is None:
             dim = -1
-        input_data = _data(x)
-        e_x = np.exp(
-            input_data - np.max(input_data, axis=dim, keepdims=True)
-        )  # subtract max(x) for numerical stability
+        e_x = np.exp(x - np.max(x, axis=dim, keepdims=True))  # subtract max(x) for numerical stability
         return e_x / np.sum(e_x, axis=dim, keepdims=True)
 
     @staticmethod
@@ -131,9 +119,7 @@ class Softmax(Operation):
         """
         x, dim = context.args
         dim = -1 if dim is None else dim
-        softmax_x = Softmax.forward(x, dim=dim)
-        grad_data = _grad_data(grad)
-        grad_input = softmax_x * (
-            grad_data - np.sum(grad_data * softmax_x, axis=dim, keepdims=True)
-        )
+        softmax_x = Softmax.forward(x.data, dim=dim)
+        grad_data = np.asarray(grad, dtype=np.float64)
+        grad_input = softmax_x * (grad_data - np.sum(grad_data * softmax_x, axis=dim, keepdims=True))
         return grad_input, None
