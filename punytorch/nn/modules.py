@@ -38,15 +38,28 @@ class Module:
             list[Parameter]: A list of all parameters in the module.
         """
         params = []
-        for key, value in self.__dict__.items():
-            if isinstance(value, Parameter):
-                params.append(value)
-            if isinstance(value, Module):
-                params.extend(value.parameters())
-            if isinstance(value, ModuleList):
-                for module in value:
-                    params.extend(module.parameters())
-        return list(set(params))
+        seen = set()
+
+        def add_parameter(param: Parameter):
+            param_id = id(param)
+            if param_id not in seen:
+                params.append(param)
+                seen.add(param_id)
+
+        def collect(module: Module):
+            if isinstance(module, ModuleList):
+                for child in module:
+                    collect(child)
+                return
+
+            for value in module.__dict__.values():
+                if isinstance(value, Parameter):
+                    add_parameter(value)
+                elif isinstance(value, Module):
+                    collect(value)
+
+        collect(self)
+        return params
 
     def state_dict(self):
         """
@@ -68,17 +81,13 @@ class Module:
                     d[key] = v.clone()
                 elif isinstance(v, ModuleList):
                     ds = [
-                        _get_params(
-                            m, f"{prefix}.{k}.{idx}" if prefix != "" else f"{k}.{idx}"
-                        )
+                        _get_params(m, f"{prefix}.{k}.{idx}" if prefix != "" else f"{k}.{idx}")
                         for idx, m in enumerate(v)
                     ]
                     for x in ds:
                         absorb_dict(d, x)
                 elif isinstance(v, Module):
-                    absorb_dict(
-                        d, _get_params(v, f"{prefix}.{k}" if prefix != "" else f"{k}")
-                    )
+                    absorb_dict(d, _get_params(v, f"{prefix}.{k}" if prefix != "" else f"{k}"))
             return d
 
         return _get_params(self)
@@ -90,17 +99,47 @@ class Module:
         Args:
             state_dict (dict): A dict containing parameters and persistent buffers.
         """
-        for key, value in state_dict.items():
-            attr = getattr(self, key, None)
-            if attr is None:
+
+        def _lookup_child(root, part, key):
+            if isinstance(root, ModuleList):
+                if not part.isdigit():
+                    raise KeyError(f"Key {key} not found in module's state.")
+                index = int(part)
+                try:
+                    return root[index]
+                except IndexError as exc:
+                    raise KeyError(f"Key {key} not found in module's state.") from exc
+
+            if not isinstance(root, Module) or not hasattr(root, part):
                 raise KeyError(f"Key {key} not found in module's state.")
+
+            child = getattr(root, part)
+            if not isinstance(child, (Module, ModuleList)):
+                raise KeyError(f"Key {key} not found in module's state.")
+            return child
+
+        def _as_array_copy(value):
+            if isinstance(value, Tensor):
+                return value.data.copy()
+            return np.array(value, copy=True)
+
+        for key, value in state_dict.items():
+            parts = key.split(".")
+            root = self
+            for part in parts[:-1]:
+                root = _lookup_child(root, part, key)
+
+            name = parts[-1]
+            if not isinstance(root, Module) or not hasattr(root, name):
+                raise KeyError(f"Key {key} not found in module's state.")
+            attr = getattr(root, name)
             if isinstance(attr, Parameter):
-                attr.data = value
-            elif isinstance(attr, Module):
-                attr.load_state_dict(value)
-            elif isinstance(attr, list):  # Assuming ModuleList
-                for param, state in zip(attr, value):
-                    param.load_state_dict(state)
+                data = _as_array_copy(value)
+                if attr.data.shape != data.shape:
+                    raise ValueError(f"Shape mismatch for {key}: expected {attr.data.shape}, got {data.shape}.")
+                attr.data = data
+            else:
+                raise KeyError(f"Key {key} not found in module's state.")
 
     def register_buffer(self, name, value: Tensor):
         """
@@ -173,9 +212,7 @@ class Linear(Module):
         self.in_features = in_features
         self.out_features = out_features
 
-        self.weight = Parameter(
-            np.random.randn(out_features, in_features) * np.sqrt(2.0 / in_features)
-        )
+        self.weight = Parameter(np.random.randn(out_features, in_features) * np.sqrt(2.0 / in_features))
         self.bias = Parameter(np.zeros((out_features,))) if bias else None
 
     def forward(self, x: Tensor) -> Tensor:
@@ -189,7 +226,9 @@ class Linear(Module):
             Tensor: The output of the linear transformation.
         """
         self.input = x
-        x = (x @ self.weight.T) + self.bias
+        x = x @ self.weight.T
+        if self.bias is not None:
+            x = x + self.bias
         return x
 
     def backward(self, grad: Tensor) -> Tensor:

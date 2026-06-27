@@ -21,19 +21,38 @@ from punytorch.ops import (
 
 
 class Tensor:
+    _compute_grad = True
+
     def __init__(self, data, requires_grad=False):
-        if isinstance(data, np.ndarray):
+        if isinstance(data, Tensor):
+            self.data = data.data.copy()
+        elif isinstance(data, np.ndarray):
             self.data = data
         else:
             self.data = np.array(data)
         self.requires_grad = requires_grad
         # if requires_grad is True, then we need to initialize the gradient to zeros
         # and make sure that they're floats, since backprop uses floats
-        self.grad = (
-            np.zeros_like(self.data, dtype=np.float64) if requires_grad else None
-        )
+        self.grad = np.zeros_like(self.data, dtype=np.float64) if requires_grad else None
         self.dtype = self.data.dtype
         self.context = None
+
+    @staticmethod
+    def _should_track(*values):
+        return Tensor._compute_grad and any(isinstance(value, Tensor) and value.requires_grad for value in values)
+
+    @staticmethod
+    def _match_grad_shape(grad, shape):
+        if isinstance(grad, Tensor):
+            grad = grad.data
+        grad = np.asarray(grad, dtype=np.float64)
+        if grad.shape == shape:
+            return grad
+        if shape == ():
+            return np.asarray(grad.sum(), dtype=np.float64)
+        if grad.shape == ():
+            return np.broadcast_to(grad, shape).astype(np.float64)
+        return grad.reshape(shape)
 
     @property
     def shape(self):
@@ -43,18 +62,18 @@ class Tensor:
         return self.data.shape[0]
 
     def __getitem__(self, index):
+        index_data = index.data if isinstance(index, Tensor) else index
         # Create a new tensor from the indexed data
-        result = Tensor(self.data[index], requires_grad=self.requires_grad)
+        track = Tensor._should_track(self)
+        result = Tensor(self.data[index_data], requires_grad=track)
 
         # If this tensor requires gradients, we need to set up the backward connection
-        if self.requires_grad:
+        if track:
             # We need to create a custom indexing operation that can propagate gradients
-            from punytorch.ops import Function
-
             class GetItem:
                 @staticmethod
                 def forward(x, index):
-                    return x.data[index]
+                    return x[index]
 
                 @staticmethod
                 def backward(context, grad):
@@ -62,10 +81,10 @@ class Tensor:
                     # Create a gradient tensor of the same shape as the original
                     grad_input = np.zeros_like(x.data, dtype=np.float64)
                     # Place the gradient at the indexed location
-                    grad_input[index] = grad.data if hasattr(grad, "data") else grad
-                    return Tensor(grad_input), None
+                    np.add.at(grad_input, index, np.asarray(grad, dtype=np.float64))
+                    return grad_input, None
 
-            result.context = Function(GetItem, self, index)
+            result.context = Function(GetItem, self, index_data)
 
         return result
 
@@ -73,9 +92,10 @@ class Tensor:
     def T(self):
         from punytorch.ops import Transpose, Function
 
-        result = Tensor(Transpose.forward(self), requires_grad=self.requires_grad)
-        if self.requires_grad:
-            result.context = Function(Transpose, self)
+        track = Tensor._should_track(self)
+        result = Tensor(Transpose.forward(self.data), requires_grad=track)
+        if track:
+            result.context = Function(Transpose, self, None)
         return result
 
     def transpose(self, dim0, dim1):
@@ -91,16 +111,20 @@ class Tensor:
         """
         axes = list(range(self.data.ndim))
         axes[dim0], axes[dim1] = axes[dim1], axes[dim0]
-        data = self.data.transpose(axes)
-        return Tensor(data, requires_grad=self.requires_grad)
+        axes = tuple(axes)
+        from punytorch.ops import Transpose
+
+        track = Tensor._should_track(self)
+        result = Tensor(Transpose.forward(self.data, axes), requires_grad=track)
+        if track:
+            result.context = Function(Transpose, self, axes)
+        return result
 
     def tolist(self):
         return self.data.tolist()
 
     def item(self):
-        assert np.prod(self.data.shape) == 1, (
-            "Only one element tensors can be converted to Python scalars"
-        )
+        assert np.prod(self.data.shape) == 1, "Only one element tensors can be converted to Python scalars"
         return self.data.item()
 
     @staticmethod
@@ -141,22 +165,22 @@ class Tensor:
 
     def backward(self, grad=None):
         if grad is None:
-            grad = Tensor(np.ones_like(self.data))
+            grad = np.ones_like(self.data, dtype=np.float64)
+        else:
+            grad = Tensor._match_grad_shape(grad, self.data.shape)
 
         stack = [(self, grad)]
         while stack:
             tensor, grad = stack.pop()
+            grad_data = Tensor._match_grad_shape(grad, tensor.data.shape)
+            if tensor.requires_grad:
+                if tensor.grad is None:
+                    tensor.grad = np.zeros_like(tensor.data, dtype=np.float64)
+                tensor.grad += grad_data
             if tensor.context is not None:
-                grads = tensor.context.op.backward(tensor.context, grad)
+                grads = tensor.context.op.backward(tensor.context, grad_data)
                 for arg, grad_arg in zip(tensor.context.args, grads):
-                    if (
-                        isinstance(arg, Tensor)
-                        and arg.requires_grad
-                        and grad_arg is not None
-                    ):
-                        if arg.grad is None:
-                            arg.grad = np.zeros_like(arg.data)
-                        arg.grad += grad_arg.data  # Ensure grad_arg is a numpy array
+                    if isinstance(arg, Tensor) and arg.requires_grad and grad_arg is not None:
                         stack.append((arg, grad_arg))
 
     @staticmethod
@@ -183,10 +207,11 @@ class Tensor:
                 return wrapper
 
             def __enter__(self):
+                self.prev = Tensor._compute_grad
                 Tensor._compute_grad = False
 
             def __exit__(self, exc_type, exc_value, traceback):
-                Tensor._compute_grad = True
+                Tensor._compute_grad = self.prev
 
         return NoGradContext()
 
@@ -212,8 +237,9 @@ class Tensor:
         target = self.prod((s for s in shape if s != -1))
         shape = tuple(curr // target if s == -1 else s for s in shape)
 
-        result = Tensor(Reshape.forward(self, shape), requires_grad=self.requires_grad)
-        if self.requires_grad:
+        track = Tensor._should_track(self)
+        result = Tensor(Reshape.forward(self.data, shape), requires_grad=track)
+        if track:
             result.context = Function(Reshape, self, shape)
         return result
 
@@ -232,10 +258,9 @@ class Tensor:
         Returns:
             Tensor: Sum result with proper gradient tracking.
         """
-        result = Tensor(
-            Sum.forward(self, axis, keepdims), requires_grad=self.requires_grad
-        )
-        if self.requires_grad:
+        track = Tensor._should_track(self)
+        result = Tensor(Sum.forward(self.data, axis, keepdims), requires_grad=track)
+        if track:
             result.context = Function(Sum, self, axis, keepdims)
         return result
 
@@ -250,10 +275,9 @@ class Tensor:
         Returns:
             Tensor: Mean result with proper gradient tracking.
         """
-        result = Tensor(
-            Mean.forward(self, axis, keepdims), requires_grad=self.requires_grad
-        )
-        if self.requires_grad:
+        track = Tensor._should_track(self)
+        result = Tensor(Mean.forward(self.data, axis, keepdims), requires_grad=track)
+        if track:
             result.context = Function(Mean, self, axis, keepdims)
         return result
 
@@ -268,10 +292,9 @@ class Tensor:
         Returns:
             Tensor: Max result with proper gradient tracking.
         """
-        result = Tensor(
-            Max.forward(self, axis, keepdims), requires_grad=self.requires_grad
-        )
-        if self.requires_grad:
+        track = Tensor._should_track(self)
+        result = Tensor(Max.forward(self.data, axis, keepdims), requires_grad=track)
+        if track:
             result.context = Function(Max, self, axis, keepdims)
         return result
 
@@ -281,58 +304,58 @@ class Tensor:
 
     def __add__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Add.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        track = Tensor._should_track(self, other)
+        result = Tensor(Add.forward(self.data, other.data), requires_grad=track)
+        if track:
             result.context = Function(Add, self, other)
-            result.requires_grad = True
         return result
 
     def __sub__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Sub.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        track = Tensor._should_track(self, other)
+        result = Tensor(Sub.forward(self.data, other.data), requires_grad=track)
+        if track:
             result.context = Function(Sub, self, other)
-            result.requires_grad = True
         return result
 
     def __mul__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Mul.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        track = Tensor._should_track(self, other)
+        result = Tensor(Mul.forward(self.data, other.data), requires_grad=track)
+        if track:
             result.context = Function(Mul, self, other)
-            result.requires_grad = True
         return result
 
     def __truediv__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(TrueDiv.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        track = Tensor._should_track(self, other)
+        result = Tensor(TrueDiv.forward(self.data, other.data), requires_grad=track)
+        if track:
             result.context = Function(TrueDiv, self, other)
-            result.requires_grad = True
         return result
 
     def __mod__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Mod.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        track = Tensor._should_track(self, other)
+        result = Tensor(Mod.forward(self.data, other.data), requires_grad=track)
+        if track:
             result.context = Function(Mod, self, other)
-            result.requires_grad = True
         return result
 
     def __pow__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Pow.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        track = Tensor._should_track(self, other)
+        result = Tensor(Pow.forward(self.data, other.data), requires_grad=track)
+        if track:
             result.context = Function(Pow, self, other)
-            result.requires_grad = True
         return result
 
     def __matmul__(self, other):
         other = Tensor.ensure_tensor(other)
-        result = Tensor(MatMul.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        track = Tensor._should_track(self, other)
+        result = Tensor(MatMul.forward(self.data, other.data), requires_grad=track)
+        if track:
             result.context = Function(MatMul, self, other)
-            result.requires_grad = True
         return result
 
     # Right-hand operators for scalar operations
@@ -350,6 +373,10 @@ class Tensor:
         other = Tensor.ensure_tensor(other)
         return other.__truediv__(self)
 
+    def __rpow__(self, other) -> "Tensor":
+        other = Tensor.ensure_tensor(other)
+        return other.__pow__(self)
+
     """
     UNARY OPS
     """
@@ -358,7 +385,7 @@ class Tensor:
         return Tensor(np.abs(self.data))
 
     def __neg__(self) -> "Tensor":
-        return Tensor(-self.data)
+        return self * -1
 
     def __invert__(self) -> "Tensor":
         return Tensor(~self.data)
@@ -367,8 +394,9 @@ class Tensor:
         return f"tensor({self.data})"
 
     def tanh(self):
-        result = Tensor(Tanh.forward(self.data), requires_grad=self.requires_grad)
-        if self.requires_grad:
+        track = Tensor._should_track(self)
+        result = Tensor(Tanh.forward(self.data), requires_grad=track)
+        if track:
             result.context = Function(Tanh, self)
         return result
 
@@ -382,21 +410,24 @@ class Tensor:
         self.grad = np.zeros_like(self.data, dtype=float)
 
     def relu(self):
-        result = Tensor(ReLU.forward(self.data), requires_grad=self.requires_grad)
-        if self.requires_grad:
+        track = Tensor._should_track(self)
+        result = Tensor(ReLU.forward(self.data), requires_grad=track)
+        if track:
             result.context = Function(ReLU, self)
         return result
 
     def sigmoid(self):
-        result = Tensor(Sigmoid.forward(self.data), requires_grad=self.requires_grad)
-        if self.requires_grad:
+        track = Tensor._should_track(self)
+        result = Tensor(Sigmoid.forward(self.data), requires_grad=track)
+        if track:
             result.context = Function(Sigmoid, self)
         return result
 
-    def softmax(self):
-        result = Tensor(Softmax.forward(self.data), requires_grad=self.requires_grad)
-        if self.requires_grad:
-            result.context = Function(Softmax, self)
+    def softmax(self, dim=None):
+        track = Tensor._should_track(self)
+        result = Tensor(Softmax.forward(self.data, dim=dim), requires_grad=track)
+        if track:
+            result.context = Function(Softmax, self, dim)
         return result
 
     def cross_entropy(self, targets):
@@ -413,8 +444,9 @@ class Tensor:
         from punytorch.ops import Function
 
         targets = Tensor.ensure_tensor(targets)
-        result = Tensor(CrossEntropyLoss.forward(self, targets), requires_grad=True)
-        if self.requires_grad or targets.requires_grad:
+        track = Tensor._should_track(self)
+        result = Tensor(CrossEntropyLoss.forward(self.data, targets.data), requires_grad=track)
+        if track:
             result.context = Function(CrossEntropyLoss, self, targets)
         return result
 
@@ -436,9 +468,7 @@ class Tensor:
 
     @staticmethod
     def multinomial(input, num_samples):
-        return Tensor(
-            np.random.choice(range(input.shape[1]), size=num_samples, p=input.data[0])
-        )
+        return Tensor(np.random.choice(range(input.shape[1]), size=num_samples, p=input.data[0]))
 
     @staticmethod
     def cat(tensors, dim=0):
@@ -466,6 +496,4 @@ class Tensor:
         if device == "cpu":
             return self  # Since NumPy arrays are already on the CPU, just return self.
         else:
-            raise NotImplementedError(
-                "Only 'cpu' device is supported for the Tensor class."
-            )
+            raise NotImplementedError("Only 'cpu' device is supported for the Tensor class.")
