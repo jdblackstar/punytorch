@@ -12,14 +12,14 @@ dependencies = [
     "requests>=2.31.0",
     "tqdm>=4.66.1",
     "numpy>=1.26.3",
-    "torch==2.5.1",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=7.4.4",
     "black>=23.12.1",
     "matplotlib>=3.8.2",
+    "torch==2.5.1",
 ]
 
 [build-system]
