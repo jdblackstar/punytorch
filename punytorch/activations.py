@@ -2,6 +2,22 @@ import numpy as np
 from punytorch.ops import Operation
 
 
+def _as_array(value):
+    if isinstance(value, np.ndarray):
+        return value
+    data = getattr(value, "data", None)
+    if isinstance(data, np.ndarray):
+        return data
+    return np.asarray(value)
+
+
+def _grad_array(grad, shape):
+    grad_data = _as_array(grad)
+    if np.ndim(grad_data) == 0:
+        return np.ones(shape, dtype=np.float64) * grad_data
+    return grad_data
+
+
 class ReLU(Operation):
     """
     Implements the ReLU (Rectified Linear Unit) activation function for a neural network.
@@ -18,7 +34,7 @@ class ReLU(Operation):
         Returns:
             numpy.ndarray: The output after applying the ReLU function, which is max(0, x).
         """
-        return np.maximum(0, x.data)
+        return np.maximum(0, _as_array(x))
 
     @staticmethod
     def backward(context, grad):
@@ -35,11 +51,9 @@ class ReLU(Operation):
         """
         from punytorch.tensor import Tensor
 
-        x = context.args[0].data
-        # grad wasn't broadcasting to the same shape as x, so:
-        grad_data = grad.data if isinstance(grad, Tensor) else grad
-        grad_data = np.ones_like(x) if np.isscalar(grad_data) else grad_data
-        return Tensor((x > 0).astype(np.float64) * grad_data), None
+        x = _as_array(context.args[0])
+        grad_data = _grad_array(grad, x.shape)
+        return (Tensor((x > 0).astype(np.float64) * grad_data),)
 
 
 class Sigmoid(Operation):
@@ -58,7 +72,8 @@ class Sigmoid(Operation):
         Returns:
             numpy.ndarray: The output after applying the Sigmoid function, which is 1 / (1 + exp(-x)).
         """
-        return 1 / (1 + np.exp(-x.data))
+        x = _as_array(x)
+        return 1 / (1 + np.exp(-x))
 
     @staticmethod
     def backward(context, grad):
@@ -75,10 +90,10 @@ class Sigmoid(Operation):
         """
         from punytorch.tensor import Tensor
 
-        x = context.args[0].data
+        x = _as_array(context.args[0])
         sigmoid_x = 1 / (1 + np.exp(-x))
-        grad_data = grad.data if isinstance(grad, Tensor) else grad
-        return Tensor(sigmoid_x * (1 - sigmoid_x) * grad_data), None
+        grad_data = _grad_array(grad, x.shape)
+        return (Tensor(sigmoid_x * (1 - sigmoid_x) * grad_data),)
 
 
 class Softmax(Operation):
@@ -101,7 +116,7 @@ class Softmax(Operation):
         """
         if dim is None:
             dim = -1
-        input_data = x.data if hasattr(x, "data") else x
+        input_data = _as_array(x)
         e_x = np.exp(
             input_data - np.max(input_data, axis=dim, keepdims=True)
         )  # subtract max(x) for numerical stability
@@ -126,16 +141,10 @@ class Softmax(Operation):
         """
         from punytorch.tensor import Tensor
 
-        x = context.args[0].data
-        softmax_x = np.exp(x - np.max(x))
-        softmax_x /= np.sum(softmax_x, axis=0)
-        grad_data = grad.data if isinstance(grad, Tensor) else grad
-        grad_data = np.ones_like(x) if np.isscalar(grad_data) else grad_data
-        grad_input = np.zeros_like(x)
-        for i in range(len(x)):
-            for j in range(len(x)):
-                if i == j:
-                    grad_input[i] += grad_data[j] * softmax_x[i] * (1 - softmax_x[j])
-                else:
-                    grad_input[i] -= grad_data[j] * softmax_x[i] * softmax_x[j]
-        return Tensor(grad_input), None
+        x = _as_array(context.args[0])
+        softmax_x = Softmax.forward(x)
+        grad_data = _grad_array(grad, x.shape)
+        grad_input = softmax_x * (
+            grad_data - np.sum(grad_data * softmax_x, axis=-1, keepdims=True)
+        )
+        return (Tensor(grad_input),)
