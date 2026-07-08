@@ -312,6 +312,56 @@ class Reshape(Operation):
         return grad_data.reshape(x.shape), None
 
 
+class Stack(Operation):
+    """
+    Implements tensor stack operation with proper gradient flow.
+    """
+
+    @staticmethod
+    def forward(*args):
+        *arrays, axis = args
+        return np.stack(arrays, axis=axis)
+
+    @staticmethod
+    def backward(context, grad):
+        *tensors, axis = context.args
+        grad_data = np.asarray(grad, dtype=np.float64)
+        axis = axis if axis >= 0 else axis + grad_data.ndim
+
+        grads = [
+            np.take(grad_data, index, axis=axis).reshape(tensor.data.shape) for index, tensor in enumerate(tensors)
+        ]
+        return (*grads, None)
+
+
+class Cat(Operation):
+    """
+    Implements tensor concatenation operation with proper gradient flow.
+    """
+
+    @staticmethod
+    def forward(*args):
+        *arrays, axis = args
+        return np.concatenate(arrays, axis=axis)
+
+    @staticmethod
+    def backward(context, grad):
+        *tensors, axis = context.args
+        grad_data = np.asarray(grad, dtype=np.float64)
+        axis = axis if axis >= 0 else axis + grad_data.ndim
+
+        grads = []
+        start = 0
+        for tensor in tensors:
+            end = start + tensor.data.shape[axis]
+            slices = [slice(None)] * grad_data.ndim
+            slices[axis] = slice(start, end)
+            grads.append(grad_data[tuple(slices)].reshape(tensor.data.shape))
+            start = end
+
+        return (*grads, None)
+
+
 class Sum(Operation):
     """
     Implements tensor sum reduction with proper gradient flow.
