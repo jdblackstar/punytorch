@@ -469,8 +469,22 @@ class Tensor:
     """
 
     def float(self):
-        self.data = self.data.astype(np.float32)
-        return self
+        from punytorch.ops import Function
+
+        class FloatCast:
+            @staticmethod
+            def forward(x):
+                return x.astype(np.float32)
+
+            @staticmethod
+            def backward(context, grad):
+                return (np.asarray(grad, dtype=np.float64),)
+
+        track = Tensor._should_track(self)
+        result = Tensor(FloatCast.forward(self.data), requires_grad=track)
+        if track:
+            result.context = Function(FloatCast, self)
+        return result
 
     """
     CUSTOM METHODS FOR GENERATE FUNCTION
@@ -497,9 +511,7 @@ class Tensor:
         """
         Converts the tensor to a 64-bit integer tensor.
         """
-        if self.dtype is not np.int64:
-            return Tensor(self.data.astype(np.int64), requires_grad=self.requires_grad)
-        return self
+        return Tensor(self.data.astype(np.int64), requires_grad=False)
 
     def to(self, device):
         """

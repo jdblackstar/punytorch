@@ -102,3 +102,55 @@ def test_cat_backward_respects_dim():
 
     np.testing.assert_allclose(x.grad, [[1.0], [4.0]])
     np.testing.assert_allclose(y.grad, [[2.0, 3.0], [5.0, 6.0]])
+
+
+def test_float_returns_new_tensor_without_mutating_source():
+    x = Tensor(np.array([1.0, 2.0], dtype=np.float64), requires_grad=True)
+
+    y = x.float()
+
+    assert y is not x
+    assert x.data.dtype == np.float64
+    assert y.data.dtype == np.float32
+    assert y.requires_grad
+
+
+def test_float_cast_backpropagates_when_grad_enabled():
+    x = Tensor(np.array([1.0, 2.0], dtype=np.float64), requires_grad=True)
+
+    y = (x.float() * Tensor([2.0, 3.0])).sum()
+    y.backward()
+
+    np.testing.assert_allclose(x.grad, [2.0, 3.0])
+
+
+def test_float_respects_no_grad_when_casting():
+    x = Tensor(np.array([1.0, 2.0], dtype=np.float64), requires_grad=True)
+
+    with Tensor.no_grad():
+        y = x.float()
+
+    assert not y.requires_grad
+    assert y.context is None
+
+
+def test_long_returns_detached_int64_tensor():
+    x = Tensor(np.array([1.2, 2.8], dtype=np.float64), requires_grad=True)
+
+    y = x.long()
+
+    assert y is not x
+    assert x.data.dtype == np.float64
+    assert y.data.dtype == np.int64
+    assert not y.requires_grad
+    assert y.grad is None
+
+
+def test_long_detaches_existing_int64_tensor():
+    x = Tensor(np.array([1, 2], dtype=np.int64), requires_grad=True)
+
+    y = x.long()
+
+    assert y is not x
+    assert y.data.dtype == np.int64
+    assert not y.requires_grad
