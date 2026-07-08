@@ -51,6 +51,59 @@ def test_getitem_repeated_index_backward_accumulates():
     np.testing.assert_allclose(x.grad, [0.0, 2.0, 0.0, 1.0])
 
 
+def test_abs_backward_uses_sign_subgradient():
+    x = Tensor(np.array([-2.0, 0.0, 3.0]), requires_grad=True)
+
+    y = abs(x).sum()
+    y.backward()
+
+    np.testing.assert_allclose(x.grad, [-1.0, 0.0, 1.0])
+
+
+def test_stack_backward_propagates_to_sources():
+    x = Tensor([1.0, 2.0], requires_grad=True)
+    y = Tensor([3.0, 4.0], requires_grad=True)
+
+    z = Tensor.stack([x, y]).sum()
+    z.backward()
+
+    np.testing.assert_allclose(x.grad, [1.0, 1.0])
+    np.testing.assert_allclose(y.grad, [1.0, 1.0])
+
+
+def test_stack_backward_respects_axis():
+    x = Tensor([1.0, 2.0], requires_grad=True)
+    y = Tensor([3.0, 4.0], requires_grad=True)
+
+    z = (Tensor.stack([x, y], axis=-1) * Tensor([[1.0, 3.0], [2.0, 4.0]])).sum()
+    z.backward()
+
+    np.testing.assert_allclose(x.grad, [1.0, 2.0])
+    np.testing.assert_allclose(y.grad, [3.0, 4.0])
+
+
+def test_cat_backward_propagates_to_sources():
+    x = Tensor([1.0, 2.0], requires_grad=True)
+    y = Tensor([3.0, 4.0], requires_grad=True)
+
+    z = Tensor.cat([x, y]).sum()
+    z.backward()
+
+    np.testing.assert_allclose(x.grad, [1.0, 1.0])
+    np.testing.assert_allclose(y.grad, [1.0, 1.0])
+
+
+def test_cat_backward_respects_dim():
+    x = Tensor([[1.0], [2.0]], requires_grad=True)
+    y = Tensor([[3.0, 4.0], [5.0, 6.0]], requires_grad=True)
+
+    z = (Tensor.cat([x, y], dim=-1) * Tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])).sum()
+    z.backward()
+
+    np.testing.assert_allclose(x.grad, [[1.0], [4.0]])
+    np.testing.assert_allclose(y.grad, [[2.0, 3.0], [5.0, 6.0]])
+
+
 def test_float_returns_new_tensor_without_mutating_source():
     x = Tensor(np.array([1.0, 2.0], dtype=np.float64), requires_grad=True)
 
