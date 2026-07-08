@@ -31,3 +31,63 @@ def test_backpropagation():
     """
     assert np.allclose(y.grad.data, [2.0, 3.0, 4.0])
     assert np.allclose(x.grad.data, [4.0, 5.0, 6.0])
+
+
+def test_no_grad_operations_do_not_track_gradients():
+    x = Tensor([1.0, 2.0, 3.0], requires_grad=True)
+
+    with Tensor.no_grad():
+        y = x + 1
+        z = y.sum()
+        relu = x.relu()
+
+    for result in (y, z, relu):
+        assert result.requires_grad is False
+        assert result.context is None
+
+
+def test_no_grad_decorator_disables_gradient_tracking():
+    x = Tensor([1.0, 2.0, 3.0], requires_grad=True)
+
+    @Tensor.no_grad()
+    def add_and_sum(tensor):
+        return (tensor + 1).sum()
+
+    result = add_and_sum(x)
+
+    assert result.requires_grad is False
+    assert result.context is None
+
+
+def test_no_grad_nested_context_restores_outer_state():
+    x = Tensor([1.0, 2.0, 3.0], requires_grad=True)
+
+    with Tensor.no_grad():
+        with Tensor.no_grad():
+            inner = x + 1
+        outer = x * 2
+
+    normal = x + 3
+
+    assert inner.requires_grad is False
+    assert inner.context is None
+    assert outer.requires_grad is False
+    assert outer.context is None
+    assert normal.requires_grad is True
+    assert normal.context is not None
+
+
+def test_no_grad_does_not_disable_later_backpropagation():
+    x = Tensor([1.0, 2.0, 3.0], requires_grad=True)
+
+    with Tensor.no_grad():
+        ignored = (x * 10).sum()
+
+    z = (x * 2).sum()
+    z.backward()
+
+    assert ignored.requires_grad is False
+    assert ignored.context is None
+    assert z.requires_grad is True
+    assert z.context is not None
+    assert np.allclose(x.grad.data, [2.0, 2.0, 2.0])

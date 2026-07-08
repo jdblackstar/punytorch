@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import wraps
+
 import numpy as np
 
 from punytorch.activations import ReLU, Sigmoid, Softmax
@@ -21,6 +23,8 @@ from punytorch.ops import (
 
 
 class Tensor:
+    _compute_grad = True
+
     def __init__(self, data, requires_grad=False):
         if isinstance(data, np.ndarray):
             self.data = data
@@ -43,11 +47,12 @@ class Tensor:
         return self.data.shape[0]
 
     def __getitem__(self, index):
+        requires_grad = Tensor._should_track_grad(self)
         # Create a new tensor from the indexed data
-        result = Tensor(self.data[index], requires_grad=self.requires_grad)
+        result = Tensor(self.data[index], requires_grad=requires_grad)
 
         # If this tensor requires gradients, we need to set up the backward connection
-        if self.requires_grad:
+        if requires_grad:
             # We need to create a custom indexing operation that can propagate gradients
             from punytorch.ops import Function
 
@@ -73,8 +78,9 @@ class Tensor:
     def T(self):
         from punytorch.ops import Transpose, Function
 
-        result = Tensor(Transpose.forward(self), requires_grad=self.requires_grad)
-        if self.requires_grad:
+        requires_grad = Tensor._should_track_grad(self)
+        result = Tensor(Transpose.forward(self), requires_grad=requires_grad)
+        if requires_grad:
             result.context = Function(Transpose, self)
         return result
 
@@ -92,7 +98,7 @@ class Tensor:
         axes = list(range(self.data.ndim))
         axes[dim0], axes[dim1] = axes[dim1], axes[dim0]
         data = self.data.transpose(axes)
-        return Tensor(data, requires_grad=self.requires_grad)
+        return Tensor(data, requires_grad=Tensor._should_track_grad(self))
 
     def tolist(self):
         return self.data.tolist()
@@ -122,7 +128,7 @@ class Tensor:
         Returns:
             Tensor: A copy of the tensor.
         """
-        return Tensor(self.data.copy(), requires_grad=self.requires_grad)
+        return Tensor(self.data.copy(), requires_grad=Tensor._should_track_grad(self))
 
     @staticmethod
     def stack(tensors, axis=0):
@@ -165,10 +171,17 @@ class Tensor:
             return data
         return Tensor(data)
 
+    @staticmethod
+    def _should_track_grad(*values):
+        return Tensor._compute_grad and any(
+            isinstance(value, Tensor) and value.requires_grad for value in values
+        )
+
     """
     ML OPS
     """
 
+    @staticmethod
     def no_grad():
         """
         This context manager can temporarily disable gradient computation.
@@ -176,17 +189,20 @@ class Tensor:
 
         class NoGradContext:
             def __call__(self, func):
+                @wraps(func)
                 def wrapper(*args, **kwargs):
-                    with NoGradContext():
+                    with Tensor.no_grad():
                         return func(*args, **kwargs)
 
                 return wrapper
 
             def __enter__(self):
+                self._previous_compute_grad = Tensor._compute_grad
                 Tensor._compute_grad = False
+                return self
 
             def __exit__(self, exc_type, exc_value, traceback):
-                Tensor._compute_grad = True
+                Tensor._compute_grad = self._previous_compute_grad
 
         return NoGradContext()
 
@@ -212,8 +228,9 @@ class Tensor:
         target = self.prod((s for s in shape if s != -1))
         shape = tuple(curr // target if s == -1 else s for s in shape)
 
-        result = Tensor(Reshape.forward(self, shape), requires_grad=self.requires_grad)
-        if self.requires_grad:
+        requires_grad = Tensor._should_track_grad(self)
+        result = Tensor(Reshape.forward(self, shape), requires_grad=requires_grad)
+        if requires_grad:
             result.context = Function(Reshape, self, shape)
         return result
 
@@ -232,10 +249,11 @@ class Tensor:
         Returns:
             Tensor: Sum result with proper gradient tracking.
         """
+        requires_grad = Tensor._should_track_grad(self)
         result = Tensor(
-            Sum.forward(self, axis, keepdims), requires_grad=self.requires_grad
+            Sum.forward(self, axis, keepdims), requires_grad=requires_grad
         )
-        if self.requires_grad:
+        if requires_grad:
             result.context = Function(Sum, self, axis, keepdims)
         return result
 
@@ -250,10 +268,11 @@ class Tensor:
         Returns:
             Tensor: Mean result with proper gradient tracking.
         """
+        requires_grad = Tensor._should_track_grad(self)
         result = Tensor(
-            Mean.forward(self, axis, keepdims), requires_grad=self.requires_grad
+            Mean.forward(self, axis, keepdims), requires_grad=requires_grad
         )
-        if self.requires_grad:
+        if requires_grad:
             result.context = Function(Mean, self, axis, keepdims)
         return result
 
@@ -268,10 +287,11 @@ class Tensor:
         Returns:
             Tensor: Max result with proper gradient tracking.
         """
+        requires_grad = Tensor._should_track_grad(self)
         result = Tensor(
-            Max.forward(self, axis, keepdims), requires_grad=self.requires_grad
+            Max.forward(self, axis, keepdims), requires_grad=requires_grad
         )
-        if self.requires_grad:
+        if requires_grad:
             result.context = Function(Max, self, axis, keepdims)
         return result
 
@@ -281,58 +301,58 @@ class Tensor:
 
     def __add__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Add.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        requires_grad = Tensor._should_track_grad(self, other)
+        result = Tensor(Add.forward(self, other), requires_grad=requires_grad)
+        if requires_grad:
             result.context = Function(Add, self, other)
-            result.requires_grad = True
         return result
 
     def __sub__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Sub.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        requires_grad = Tensor._should_track_grad(self, other)
+        result = Tensor(Sub.forward(self, other), requires_grad=requires_grad)
+        if requires_grad:
             result.context = Function(Sub, self, other)
-            result.requires_grad = True
         return result
 
     def __mul__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Mul.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        requires_grad = Tensor._should_track_grad(self, other)
+        result = Tensor(Mul.forward(self, other), requires_grad=requires_grad)
+        if requires_grad:
             result.context = Function(Mul, self, other)
-            result.requires_grad = True
         return result
 
     def __truediv__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(TrueDiv.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        requires_grad = Tensor._should_track_grad(self, other)
+        result = Tensor(TrueDiv.forward(self, other), requires_grad=requires_grad)
+        if requires_grad:
             result.context = Function(TrueDiv, self, other)
-            result.requires_grad = True
         return result
 
     def __mod__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Mod.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        requires_grad = Tensor._should_track_grad(self, other)
+        result = Tensor(Mod.forward(self, other), requires_grad=requires_grad)
+        if requires_grad:
             result.context = Function(Mod, self, other)
-            result.requires_grad = True
         return result
 
     def __pow__(self, other) -> "Tensor":
         other = Tensor.ensure_tensor(other)
-        result = Tensor(Pow.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        requires_grad = Tensor._should_track_grad(self, other)
+        result = Tensor(Pow.forward(self, other), requires_grad=requires_grad)
+        if requires_grad:
             result.context = Function(Pow, self, other)
-            result.requires_grad = True
         return result
 
     def __matmul__(self, other):
         other = Tensor.ensure_tensor(other)
-        result = Tensor(MatMul.forward(self, other))
-        if self.requires_grad or other.requires_grad:
+        requires_grad = Tensor._should_track_grad(self, other)
+        result = Tensor(MatMul.forward(self, other), requires_grad=requires_grad)
+        if requires_grad:
             result.context = Function(MatMul, self, other)
-            result.requires_grad = True
         return result
 
     # Right-hand operators for scalar operations
@@ -367,8 +387,9 @@ class Tensor:
         return f"tensor({self.data})"
 
     def tanh(self):
-        result = Tensor(Tanh.forward(self.data), requires_grad=self.requires_grad)
-        if self.requires_grad:
+        requires_grad = Tensor._should_track_grad(self)
+        result = Tensor(Tanh.forward(self.data), requires_grad=requires_grad)
+        if requires_grad:
             result.context = Function(Tanh, self)
         return result
 
@@ -382,20 +403,23 @@ class Tensor:
         self.grad = np.zeros_like(self.data, dtype=float)
 
     def relu(self):
-        result = Tensor(ReLU.forward(self.data), requires_grad=self.requires_grad)
-        if self.requires_grad:
+        requires_grad = Tensor._should_track_grad(self)
+        result = Tensor(ReLU.forward(self.data), requires_grad=requires_grad)
+        if requires_grad:
             result.context = Function(ReLU, self)
         return result
 
     def sigmoid(self):
-        result = Tensor(Sigmoid.forward(self.data), requires_grad=self.requires_grad)
-        if self.requires_grad:
+        requires_grad = Tensor._should_track_grad(self)
+        result = Tensor(Sigmoid.forward(self.data), requires_grad=requires_grad)
+        if requires_grad:
             result.context = Function(Sigmoid, self)
         return result
 
     def softmax(self):
-        result = Tensor(Softmax.forward(self.data), requires_grad=self.requires_grad)
-        if self.requires_grad:
+        requires_grad = Tensor._should_track_grad(self)
+        result = Tensor(Softmax.forward(self.data), requires_grad=requires_grad)
+        if requires_grad:
             result.context = Function(Softmax, self)
         return result
 
@@ -413,8 +437,12 @@ class Tensor:
         from punytorch.ops import Function
 
         targets = Tensor.ensure_tensor(targets)
-        result = Tensor(CrossEntropyLoss.forward(self, targets), requires_grad=True)
-        if self.requires_grad or targets.requires_grad:
+        requires_grad = Tensor._compute_grad
+        should_attach_context = Tensor._should_track_grad(self, targets)
+        result = Tensor(
+            CrossEntropyLoss.forward(self, targets), requires_grad=requires_grad
+        )
+        if should_attach_context:
             result.context = Function(CrossEntropyLoss, self, targets)
         return result
 
@@ -450,7 +478,10 @@ class Tensor:
         Converts the tensor to a 64-bit integer tensor.
         """
         if self.dtype is not np.int64:
-            return Tensor(self.data.astype(np.int64), requires_grad=self.requires_grad)
+            return Tensor(
+                self.data.astype(np.int64),
+                requires_grad=Tensor._should_track_grad(self),
+            )
         return self
 
     def to(self, device):
