@@ -4,6 +4,7 @@ import numpy as np
 
 from punytorch.activations import ReLU, Sigmoid, Softmax
 from punytorch.ops import (
+    Abs,
     Add,
     Cat,
     Function,
@@ -391,7 +392,11 @@ class Tensor:
     """
 
     def __abs__(self) -> "Tensor":
-        return Tensor(np.abs(self.data))
+        track = Tensor._should_track(self)
+        result = Tensor(Abs.forward(self.data), requires_grad=track)
+        if track:
+            result.context = Function(Abs, self)
+        return result
 
     def __neg__(self) -> "Tensor":
         return self * -1

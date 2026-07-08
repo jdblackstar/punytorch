@@ -51,6 +51,15 @@ def test_getitem_repeated_index_backward_accumulates():
     np.testing.assert_allclose(x.grad, [0.0, 2.0, 0.0, 1.0])
 
 
+def test_abs_backward_uses_sign_subgradient():
+    x = Tensor(np.array([-2.0, 0.0, 3.0]), requires_grad=True)
+
+    y = abs(x).sum()
+    y.backward()
+
+    np.testing.assert_allclose(x.grad, [-1.0, 0.0, 1.0])
+
+
 def test_stack_backward_propagates_to_sources():
     x = Tensor([1.0, 2.0], requires_grad=True)
     y = Tensor([3.0, 4.0], requires_grad=True)
