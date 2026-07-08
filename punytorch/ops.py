@@ -250,6 +250,24 @@ class Tanh(Operation):
         return (grad_tanh * grad_data,)
 
 
+class Abs(Operation):
+    @staticmethod
+    def forward(x):
+        """
+        z = abs(x)
+        """
+        return np.abs(x)
+
+    @staticmethod
+    def backward(context, grad):
+        """
+        d(abs(x))/dx = sign(x), with subgradient 0 at x == 0.
+        """
+        x = context.args[0]
+        grad_data = np.asarray(grad, dtype=np.float64)
+        return (grad_data * np.sign(x.data),)
+
+
 class Transpose(Operation):
     """
     Implements matrix transpose operation with proper gradient flow.
