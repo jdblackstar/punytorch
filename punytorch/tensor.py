@@ -81,7 +81,11 @@ class Tensor:
                     # Create a gradient tensor of the same shape as the original
                     grad_input = np.zeros_like(x.data, dtype=np.float64)
                     # Place the gradient at the indexed location
-                    np.add.at(grad_input, index, np.asarray(grad, dtype=np.float64))
+                    grad_data = np.asarray(grad, dtype=np.float64)
+                    try:
+                        np.add.at(grad_input, index, grad_data)
+                    except TypeError:
+                        grad_input[index] += grad_data
                     return grad_input, None
 
             result.context = Function(GetItem, self, index_data)
