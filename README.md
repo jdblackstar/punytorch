@@ -6,13 +6,11 @@ The goal is to have something very simple that will let me implement and experim
 
 # Example usage
 
-1. If poetry is not installed, install it via: `curl -sSL https://install.python-poetry.org | python -`
+1. Install uv if you do not already have it: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 
-2.  Run `poetry install` to install the dependencies
+2. Run `uv sync` to install the dependencies
 
-3. Run `poetry shell` to activate the virtual environment
-
-4. Run `python examples/mnist.py` to train a simple model on the MNIST dataset
+3. Run `uv run python examples/mnist.py` to train a simple model on the MNIST dataset
 
 # FAQs
 > can it run an LLM?
