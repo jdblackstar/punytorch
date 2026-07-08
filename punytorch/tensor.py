@@ -6,6 +6,7 @@ from punytorch.activations import ReLU, Sigmoid, Softmax
 from punytorch.ops import (
     Abs,
     Add,
+    Cat,
     Function,
     MatMul,
     Max,
@@ -14,6 +15,7 @@ from punytorch.ops import (
     Mul,
     Pow,
     Reshape,
+    Stack,
     Sub,
     Sum,
     Tanh,
@@ -155,9 +157,12 @@ class Tensor:
 
     @staticmethod
     def stack(tensors, axis=0):
-        arrays = [t.data for t in tensors]
-        stacked_array = np.stack(arrays, axis)
-        return Tensor(stacked_array)
+        tensors = [Tensor.ensure_tensor(t) for t in tensors]
+        track = Tensor._should_track(*tensors)
+        result = Tensor(Stack.forward(*[t.data for t in tensors], axis), requires_grad=track)
+        if track:
+            result.context = Function(Stack, *tensors, axis)
+        return result
 
     def detach(self):
         """
@@ -481,8 +486,12 @@ class Tensor:
 
     @staticmethod
     def cat(tensors, dim=0):
-        arrays = [t.data for t in tensors]
-        return Tensor(np.concatenate(arrays, axis=dim))
+        tensors = [Tensor.ensure_tensor(t) for t in tensors]
+        track = Tensor._should_track(*tensors)
+        result = Tensor(Cat.forward(*[t.data for t in tensors], dim), requires_grad=track)
+        if track:
+            result.context = Function(Cat, *tensors, dim)
+        return result
 
     def long(self):
         """
