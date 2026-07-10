@@ -250,6 +250,42 @@ class Tanh(Operation):
         return (grad_tanh * grad_data,)
 
 
+class Exp(Operation):
+    @staticmethod
+    def forward(x):
+        """
+        z = exp(x)
+        """
+        return np.exp(x)
+
+    @staticmethod
+    def backward(context, grad):
+        """
+        d(exp(x))/dx = exp(x)
+        """
+        x = context.args[0]
+        grad_data = np.asarray(grad, dtype=np.float64)
+        return (grad_data * np.exp(x.data),)
+
+
+class Log(Operation):
+    @staticmethod
+    def forward(x):
+        """
+        z = log(x)
+        """
+        return np.log(x)
+
+    @staticmethod
+    def backward(context, grad):
+        """
+        d(log(x))/dx = 1 / x
+        """
+        x = context.args[0]
+        grad_data = np.asarray(grad, dtype=np.float64)
+        return (grad_data / x.data,)
+
+
 class Abs(Operation):
     @staticmethod
     def forward(x):
@@ -266,6 +302,32 @@ class Abs(Operation):
         x = context.args[0]
         grad_data = np.asarray(grad, dtype=np.float64)
         return (grad_data * np.sign(x.data),)
+
+
+class Gather(Operation):
+    @staticmethod
+    def forward(x, index):
+        """
+        Selects entries from x using NumPy indexing semantics.
+        """
+        return x[index]
+
+    @staticmethod
+    def backward(context, grad):
+        """
+        Scatters upstream gradients back into the source tensor.
+
+        Repeated indices accumulate gradient, matching embedding-table lookup
+        behavior.
+        """
+        x, index = context.args
+        grad_input = np.zeros_like(x.data, dtype=np.float64)
+        grad_data = np.asarray(grad, dtype=np.float64)
+        try:
+            np.add.at(grad_input, index, grad_data)
+        except TypeError:
+            grad_input[index] += grad_data
+        return grad_input, None
 
 
 class Transpose(Operation):
@@ -537,3 +599,43 @@ class Max(Operation):
 
         grad_output = grad_broadcast * max_mask / num_max_elements
         return grad_output, None, None
+
+
+class LogSumExp(Operation):
+    """
+    Implements a numerically stable log-sum-exp reduction.
+    """
+
+    @staticmethod
+    def forward(x, axis=None, keepdims=False):
+        """
+        Computes log(sum(exp(x))) along the selected axis or axes.
+        """
+        max_vals = np.max(x, axis=axis, keepdims=True)
+        shifted = x - max_vals
+        result = np.log(np.sum(np.exp(shifted), axis=axis, keepdims=True)) + max_vals
+
+        if keepdims:
+            return result
+        return np.squeeze(result, axis=axis)
+
+    @staticmethod
+    def backward(context, grad):
+        """
+        The gradient of logsumexp is softmax over the reduced dimension.
+        """
+        x, axis, keepdims = context.args
+        grad_data = np.asarray(grad, dtype=np.float64)
+        normalized_axis = _normalize_axis(axis, x.data.ndim)
+
+        max_vals = np.max(x.data, axis=axis, keepdims=True)
+        shifted = x.data - max_vals
+        exp_shifted = np.exp(shifted)
+        denominator = np.sum(exp_shifted, axis=axis, keepdims=True)
+        softmax = exp_shifted / denominator
+
+        if normalized_axis is not None and not keepdims:
+            for ax in sorted(normalized_axis):
+                grad_data = np.expand_dims(grad_data, axis=ax)
+
+        return softmax * grad_data, None, None

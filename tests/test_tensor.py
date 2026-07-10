@@ -51,6 +51,41 @@ def test_getitem_repeated_index_backward_accumulates():
     np.testing.assert_allclose(x.grad, [0.0, 2.0, 0.0, 1.0])
 
 
+def test_gather_matches_indexing_and_backpropagates():
+    weights = Tensor(
+        np.array(
+            [
+                [1.0, 2.0],
+                [3.0, 4.0],
+                [5.0, 6.0],
+            ]
+        ),
+        requires_grad=True,
+    )
+    indices = Tensor(np.array([[0, 2], [1, 0]], dtype=np.int64))
+
+    gathered = weights.gather(indices)
+
+    np.testing.assert_allclose(
+        gathered.data,
+        [
+            [[1.0, 2.0], [5.0, 6.0]],
+            [[3.0, 4.0], [1.0, 2.0]],
+        ],
+    )
+
+    gathered.sum().backward()
+
+    np.testing.assert_allclose(
+        weights.grad,
+        [
+            [2.0, 2.0],
+            [1.0, 1.0],
+            [1.0, 1.0],
+        ],
+    )
+
+
 def test_abs_backward_uses_sign_subgradient():
     x = Tensor(np.array([-2.0, 0.0, 3.0]), requires_grad=True)
 

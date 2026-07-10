@@ -7,7 +7,11 @@ from punytorch.ops import (
     Abs,
     Add,
     Cat,
+    Exp,
     Function,
+    Gather,
+    Log,
+    LogSumExp,
     MatMul,
     Max,
     Mean,
@@ -66,32 +70,10 @@ class Tensor:
 
     def __getitem__(self, index):
         index_data = index.data if isinstance(index, Tensor) else index
-        # Create a new tensor from the indexed data
         track = Tensor._should_track(self)
-        result = Tensor(self.data[index_data], requires_grad=track)
-
-        # If this tensor requires gradients, we need to set up the backward connection
+        result = Tensor(Gather.forward(self.data, index_data), requires_grad=track)
         if track:
-            # We need to create a custom indexing operation that can propagate gradients
-            class GetItem:
-                @staticmethod
-                def forward(x, index):
-                    return x[index]
-
-                @staticmethod
-                def backward(context, grad):
-                    x, index = context.args
-                    # Create a gradient tensor of the same shape as the original
-                    grad_input = np.zeros_like(x.data, dtype=np.float64)
-                    # Place the gradient at the indexed location
-                    grad_data = np.asarray(grad, dtype=np.float64)
-                    try:
-                        np.add.at(grad_input, index, grad_data)
-                    except TypeError:
-                        grad_input[index] += grad_data
-                    return grad_input, None
-
-            result.context = Function(GetItem, self, index_data)
+            result.context = Function(Gather, self, index_data)
 
         return result
 
@@ -308,6 +290,16 @@ class Tensor:
             result.context = Function(Max, self, axis, keepdims)
         return result
 
+    def logsumexp(self, axis=None, keepdims=False):
+        """
+        Returns log(sum(exp(x))) along the specified axis using a stable reduction.
+        """
+        track = Tensor._should_track(self)
+        result = Tensor(LogSumExp.forward(self.data, axis, keepdims), requires_grad=track)
+        if track:
+            result.context = Function(LogSumExp, self, axis, keepdims)
+        return result
+
     """
     BINARY OPS
     """
@@ -413,6 +405,23 @@ class Tensor:
         if track:
             result.context = Function(Tanh, self)
         return result
+
+    def exp(self):
+        track = Tensor._should_track(self)
+        result = Tensor(Exp.forward(self.data), requires_grad=track)
+        if track:
+            result.context = Function(Exp, self)
+        return result
+
+    def log(self):
+        track = Tensor._should_track(self)
+        result = Tensor(Log.forward(self.data), requires_grad=track)
+        if track:
+            result.context = Function(Log, self)
+        return result
+
+    def gather(self, index):
+        return self[index]
 
     # TODO: implement new argmax function
 

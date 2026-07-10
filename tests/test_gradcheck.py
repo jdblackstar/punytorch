@@ -178,12 +178,37 @@ def test_reshape_gradcheck():
 @pytest.mark.parametrize(
     ("fn", "inputs", "upstream"),
     [
+        (lambda x: x.exp(), ([-1.5, -0.2, 0.4, 2.0],), [0.5, -1.0, 1.5, 0.25]),
+        (lambda x: x.log(), ([0.5, 1.2, 2.0, 3.5],), [0.5, -1.0, 1.5, 0.25]),
         (lambda x: x.relu(), ([-1.5, -0.2, 0.4, 2.0],), [0.5, -1.0, 1.5, 0.25]),
         (lambda x: x.sigmoid(), ([-1.5, -0.2, 0.4, 2.0],), [0.5, -1.0, 1.5, 0.25]),
     ],
 )
 def test_activation_gradcheck(fn, inputs, upstream):
     assert_gradcheck(fn, inputs, upstream=upstream)
+
+
+def test_logsumexp_scalar_gradcheck():
+    assert_gradcheck(
+        lambda x: x.logsumexp(),
+        ([[1.0, -2.0, 0.5], [3.0, -1.5, 2.0]],),
+    )
+
+
+def test_logsumexp_axis_gradcheck():
+    assert_gradcheck(
+        lambda x: x.logsumexp(axis=1),
+        ([[1.0, -2.0, 0.5], [3.0, -1.5, 2.0]],),
+        upstream=[0.5, -1.5],
+    )
+
+
+def test_logsumexp_keepdims_gradcheck():
+    assert_gradcheck(
+        lambda x: x.logsumexp(axis=1, keepdims=True),
+        ([[1.0, -2.0, 0.5], [3.0, -1.5, 2.0]],),
+        upstream=[[0.5], [-1.5]],
+    )
 
 
 def test_cross_entropy_2d_logits_gradcheck():
