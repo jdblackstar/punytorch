@@ -56,6 +56,16 @@ class RunResult:
         }
 
 
+def _comparison_outcome(
+    comparisons: Iterable[Comparison],
+    *,
+    otherwise: Outcome,
+) -> Outcome:
+    """Keep confirmed numerical mismatches from being masked by later control flow."""
+
+    return Outcome.MISMATCH if any(not item.passed for item in comparisons) else otherwise
+
+
 @dataclass(frozen=True)
 class CaseRun:
     scenario: Scenario
@@ -187,7 +197,7 @@ def verify_scenario(
     except NumericalDomainSkip as error:
         return RunResult(
             scenario.scenario_id,
-            Outcome.NUMERICAL_SKIP,
+            _comparison_outcome(comparisons, otherwise=Outcome.NUMERICAL_SKIP),
             comparisons=tuple(comparisons),
             message=str(error),
         )
@@ -213,7 +223,7 @@ def verify_scenario(
             message=f"{type(error).__name__}: {error}",
         )
 
-    outcome = Outcome.PASS if all(item.passed for item in comparisons) else Outcome.MISMATCH
+    outcome = _comparison_outcome(comparisons, otherwise=Outcome.PASS)
     return RunResult(scenario.scenario_id, outcome, comparisons=tuple(comparisons))
 
 

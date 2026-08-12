@@ -6,8 +6,10 @@ from dataclasses import replace
 import numpy as np
 
 from devtools.differential_verifier.candidate import CandidateExecutor
+from devtools.differential_verifier.errors import NumericalDomainSkip
 from devtools.differential_verifier.generator import generate_scenario
 from devtools.differential_verifier.models import LossSpec, NodeSpec, load_scenario
+from devtools.differential_verifier.reference import ReferenceEvaluator
 from devtools.differential_verifier.report import render_failure, replay_command
 from devtools.differential_verifier.runner import (
     Outcome,
@@ -41,6 +43,27 @@ def test_gradient_self_test_detects_corrupted_gradient_at_intended_input():
     assert [failure.target for failure in result.failures] == ["input:x"]
     assert result.failures[0].kind == "gradient"
     assert np.isclose(result.failures[0].max_absolute_error, 0.125, atol=1e-10)
+
+
+def test_numerical_skip_cannot_mask_an_existing_forward_mismatch():
+    class FiniteDifferenceSkipReference(ReferenceEvaluator):
+        def evaluate(self, scenario, *, input_overrides=None):
+            if input_overrides is not None:
+                raise NumericalDomainSkip("forced finite-difference skip")
+            return super().evaluate(scenario)
+
+    scenario = known_core_scenario()
+    candidate = CandidateExecutor(observed_corruptor=lambda name, value: value + 0.25 if name == "logged" else value)
+
+    result = verify_scenario(
+        scenario,
+        candidate=candidate,
+        reference=FiniteDifferenceSkipReference(),
+    )
+
+    assert result.outcome == Outcome.MISMATCH
+    assert [failure.target for failure in result.failures] == ["node:logged"]
+    assert result.message == "forced finite-difference skip"
 
 
 def test_invalid_unsupported_and_numerical_skip_are_distinct_outcomes():
