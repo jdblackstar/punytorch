@@ -33,5 +33,6 @@ include = '\.pyi?$'
 exclude = '''
 /(
     \.git
+  | \.venv
 )/
 '''

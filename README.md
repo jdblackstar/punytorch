@@ -24,3 +24,17 @@ only 1, and barely
 > what about computer vision?
 
 punytorch is blind
+
+# Development verification
+
+PunyTorch includes a deterministic NumPy differential verifier for small
+public-API computation graphs:
+
+```bash
+UV_CACHE_DIR=/private/tmp/uv-cache-punytorch \
+  uv run python -m devtools.differential_verifier run \
+  --profile smoke --seed 0 --cases 12
+```
+
+See [the differential verifier guide](docs/differential-verifier.md) for exact
+failure replay, supported operations, tolerance policy, and extension steps.
