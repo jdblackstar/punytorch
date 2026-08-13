@@ -87,7 +87,7 @@ class SweepResult:
     @property
     def successful(self) -> bool:
         return len(self.cases) == self.requested_cases and all(
-            case.result.outcome in {Outcome.PASS, Outcome.NUMERICAL_SKIP} for case in self.cases
+            case.result.outcome == Outcome.PASS for case in self.cases
         )
 
     def outcome_counts(self) -> dict[str, int]:
@@ -297,4 +297,4 @@ def write_failure_artifact(
 
 
 def failing_cases(sweep: SweepResult) -> Iterable[CaseRun]:
-    return (case for case in sweep.cases if case.result.outcome not in {Outcome.PASS, Outcome.NUMERICAL_SKIP})
+    return (case for case in sweep.cases if case.result.outcome != Outcome.PASS)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 
 import numpy as np
@@ -8,7 +9,7 @@ import pytest
 from devtools.differential_verifier.candidate import SUPPORTED_OPERATIONS as CANDIDATE_OPERATIONS
 from devtools.differential_verifier.errors import GeneratorRejection, InvalidScenario
 from devtools.differential_verifier.generator import INITIAL_OPERATIONS, generate_scenario
-from devtools.differential_verifier.models import NodeSpec, Scenario, scenario_from_json
+from devtools.differential_verifier.models import NodeSpec, Scenario, ValueDomain, scenario_from_json
 from devtools.differential_verifier.reference import (
     SUPPORTED_OPERATIONS as REFERENCE_OPERATIONS,
     ReferenceEvaluator,
@@ -100,3 +101,35 @@ def test_scenario_loader_requires_current_schema():
 
     with pytest.raises(InvalidScenario, match="schema"):
         Scenario.from_dict(data)
+
+
+def test_artifact_loader_requires_current_artifact_schema():
+    scenario = generate_scenario(seed=0, case_index=0, revision="abc123", profile="smoke")
+    artifact = {"artifact_schema_version": 999, "scenario": scenario.to_dict()}
+
+    with pytest.raises(InvalidScenario, match="artifact schema"):
+        scenario_from_json(json.dumps(artifact))
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_static_validation_rejects_nonfinite_tolerances(value):
+    scenario = generate_scenario(seed=0, case_index=0, revision="abc123", profile="smoke")
+    invalid = replace(
+        scenario,
+        tolerances=replace(scenario.tolerances, forward_atol=value),
+    )
+
+    with pytest.raises(InvalidScenario, match="finite"):
+        invalid.validate_static()
+
+
+def test_static_validation_rejects_nonfinite_domain_bounds():
+    scenario = generate_scenario(seed=0, case_index=0, revision="abc123", profile="smoke")
+    first_input = replace(
+        scenario.inputs[0],
+        domain=ValueDomain("bounded", float("nan"), 1.0),
+    )
+    invalid = replace(scenario, inputs=(first_input, *scenario.inputs[1:]))
+
+    with pytest.raises(InvalidScenario, match="finite domain bounds"):
+        invalid.validate_static()

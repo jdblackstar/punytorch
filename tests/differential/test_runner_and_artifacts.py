@@ -4,6 +4,7 @@ import json
 from dataclasses import replace
 
 import numpy as np
+import pytest
 
 from devtools.differential_verifier.candidate import CandidateExecutor
 from devtools.differential_verifier.errors import NumericalDomainSkip
@@ -12,7 +13,10 @@ from devtools.differential_verifier.models import LossSpec, NodeSpec, load_scena
 from devtools.differential_verifier.reference import ReferenceEvaluator
 from devtools.differential_verifier.report import render_failure, replay_command
 from devtools.differential_verifier.runner import (
+    CaseRun,
     Outcome,
+    SweepResult,
+    failing_cases,
     failure_artifact_path,
     run_sweep,
     verify_scenario,
@@ -64,6 +68,33 @@ def test_numerical_skip_cannot_mask_an_existing_forward_mismatch():
     assert result.outcome == Outcome.MISMATCH
     assert [failure.target for failure in result.failures] == ["node:logged"]
     assert result.message == "forced finite-difference skip"
+
+
+def test_infinite_tolerance_cannot_turn_corruption_into_a_pass():
+    scenario = known_core_scenario()
+    scenario = replace(
+        scenario,
+        tolerances=replace(scenario.tolerances, forward_atol=float("inf")),
+    )
+
+    result = verify_scenario(
+        scenario,
+        candidate=CandidateExecutor(observed_corruptor=lambda name, value: value + 1_000_000.0),
+    )
+
+    assert result.outcome == Outcome.INVALID_GRAPH
+    assert "finite" in result.message
+
+
+@pytest.mark.parametrize("weights", [[float("inf")] * 3, [["not-a-number"]]])
+def test_invalid_loss_weights_are_invalid_graphs_instead_of_skips_or_crashes(weights):
+    scenario = known_core_scenario()
+    scenario = replace(scenario, loss=replace(scenario.loss, weights=weights))
+
+    result = verify_scenario(scenario)
+
+    assert result.outcome == Outcome.INVALID_GRAPH
+    assert "weights" in result.message
 
 
 def test_invalid_unsupported_and_numerical_skip_are_distinct_outcomes():
@@ -212,3 +243,23 @@ def test_smoke_sweep_reports_coverage_and_no_rejections():
         "tanh",
         "transpose",
     }
+
+
+def test_numerical_skip_fails_a_generated_sweep_and_is_a_failure_case():
+    scenario = single_node_scenario(op="log", values=[[-1.0, 0.5]])
+    result = verify_scenario(scenario)
+    sweep = SweepResult(
+        seed=scenario.seed,
+        requested_cases=1,
+        revision=scenario.revision,
+        source_fingerprint=scenario.source_fingerprint,
+        profile="smoke",
+        cases=(CaseRun(scenario, result),),
+        generator_rejections=0,
+        elapsed_seconds=0.0,
+        operation_counts={"log": 1},
+    )
+
+    assert result.outcome == Outcome.NUMERICAL_SKIP
+    assert not sweep.successful
+    assert list(failing_cases(sweep)) == [sweep.cases[0]]

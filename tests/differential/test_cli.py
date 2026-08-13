@@ -2,6 +2,7 @@ from dataclasses import replace
 
 from devtools.differential_verifier.cli import _revision, _source_fingerprint, main
 from devtools.differential_verifier.generator import generate_scenario
+from tests.differential.helpers import single_node_scenario
 
 
 def _current_scenario():
@@ -34,3 +35,21 @@ def test_replay_refuses_a_different_source_fingerprint(tmp_path, capsys):
 
     assert exit_code == 2
     assert "source state mismatch" in capsys.readouterr().err
+
+
+def test_replay_returns_nonzero_for_a_numerical_skip(tmp_path, capsys):
+    scenario = single_node_scenario(
+        op="log",
+        values=[[-1.0, 0.5]],
+        revision=_revision(),
+    )
+    scenario = replace(scenario, source_fingerprint=_source_fingerprint())
+    path = tmp_path / "scenario.json"
+    path.write_text(scenario.canonical_json() + "\n", encoding="utf-8")
+
+    exit_code = main(["replay", str(path)])
+
+    assert exit_code == 1
+    output = capsys.readouterr().out
+    assert "outcome=numerical_skip" in output
+    assert "replay:" in output

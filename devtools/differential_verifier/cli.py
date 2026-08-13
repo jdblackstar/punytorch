@@ -140,7 +140,7 @@ def _replay(args: argparse.Namespace) -> int:
         return 0
     command = replay_command(artifact_path=args.artifact, repository_root=REPOSITORY_ROOT)
     print(render_failure(scenario, result, replay=command))
-    return 0 if result.outcome == Outcome.NUMERICAL_SKIP else 1
+    return 1
 
 
 def main(argv: list[str] | None = None) -> int:

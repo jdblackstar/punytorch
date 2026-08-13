@@ -40,16 +40,26 @@ class ReferenceExecution:
 
 def _axis(params: dict, name: str = "axis"):
     axis = params.get(name)
-    if isinstance(axis, list):
-        return tuple(int(value) for value in axis)
-    return axis
+    if axis is None:
+        return None
+    if isinstance(axis, (list, tuple)):
+        raise UnsupportedFeature("tuple-axis reductions are outside the verifier's initial operation slice")
+    if isinstance(axis, bool) or not isinstance(axis, (int, np.integer)):
+        raise InvalidScenario(f"reduction axis must be an integer or null, got {axis!r}")
+    return int(axis)
+
+
+def _keepdims(params: dict) -> bool:
+    keepdims = params.get("keepdims", False)
+    if not isinstance(keepdims, (bool, np.bool_)):
+        raise InvalidScenario(f"keepdims must be a boolean, got {keepdims!r}")
+    return bool(keepdims)
 
 
 def _stable_logsumexp(value: np.ndarray, axis=None, keepdims: bool = False) -> np.ndarray:
-    maximum = np.max(value, axis=axis, keepdims=True)
-    shifted = value - maximum
-    result = np.log(np.sum(np.exp(shifted), axis=axis, keepdims=True)) + maximum
-    return result if keepdims else np.squeeze(result, axis=axis)
+    # Use NumPy's pairwise log-add-exp reduction so this oracle does not repeat
+    # PunyTorch's max-shift implementation.
+    return np.logaddexp.reduce(value, axis=axis, keepdims=keepdims)
 
 
 def _ensure_arity(node: NodeSpec, expected: int | tuple[int, ...]) -> None:
@@ -81,7 +91,7 @@ def _evaluate_node(node: NodeSpec, values: list[np.ndarray]) -> np.ndarray:
     if op in {"sum", "mean", "logsumexp"}:
         _ensure_arity(node, 1)
         axis = _axis(params)
-        keepdims = bool(params.get("keepdims", False))
+        keepdims = _keepdims(params)
         if op == "sum":
             return np.sum(values[0], axis=axis, keepdims=keepdims)
         if op == "mean":

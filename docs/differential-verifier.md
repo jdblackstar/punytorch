@@ -84,7 +84,10 @@ Outcomes are classified as `pass`, `mismatch`, `invalid_graph`, `unsupported`,
 validation runs before PunyTorch execution, so a malformed generated graph is
 not reported as a framework defect. Non-finite values, non-positive logarithm
 inputs, extreme exponential inputs, and near-zero divisors are numerical-domain
-skips rather than comparisons with meaningless results.
+skips rather than comparisons with meaningless results. A generated skip makes
+the sweep fail because it means the generator did not provide a fully verified
+case. The failure artifact and replay command make that generator defect exact
+and repeatable.
 
 ## Initial operation slice
 

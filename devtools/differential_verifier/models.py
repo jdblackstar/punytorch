@@ -61,16 +61,24 @@ class ValueDomain:
     def validate(self, name: str, array: np.ndarray) -> None:
         if self.kind not in {"bounded", "positive", "nonzero"}:
             raise InvalidScenario(f"input {name!r} has unknown domain kind {self.kind!r}")
-        if self.minimum > self.maximum or self.min_abs < 0:
+        try:
+            minimum = float(self.minimum)
+            maximum = float(self.maximum)
+            min_abs = float(self.min_abs)
+        except (TypeError, ValueError) as error:
+            raise InvalidScenario(f"input {name!r} has non-numeric domain bounds") from error
+        if not np.all(np.isfinite([minimum, maximum, min_abs])):
+            raise InvalidScenario(f"input {name!r} must have finite domain bounds")
+        if minimum > maximum or min_abs < 0:
             raise InvalidScenario(f"input {name!r} has inconsistent domain bounds")
         if not np.all(np.isfinite(array)):
             raise InvalidScenario(f"input {name!r} contains non-finite values")
-        if np.any(array < self.minimum) or np.any(array > self.maximum):
-            raise InvalidScenario(f"input {name!r} violates its declared [{self.minimum}, {self.maximum}] domain")
+        if np.any(array < minimum) or np.any(array > maximum):
+            raise InvalidScenario(f"input {name!r} violates its declared [{minimum}, {maximum}] domain")
         if self.kind == "positive" and np.any(array <= 0):
             raise InvalidScenario(f"input {name!r} must be positive")
-        if self.kind == "nonzero" and np.any(np.abs(array) < self.min_abs):
-            raise InvalidScenario(f"input {name!r} violates min_abs={self.min_abs}")
+        if self.kind == "nonzero" and np.any(np.abs(array) < min_abs):
+            raise InvalidScenario(f"input {name!r} violates min_abs={min_abs}")
 
 
 @dataclass(frozen=True)
@@ -203,7 +211,10 @@ class Tolerances:
             )
         except (KeyError, TypeError, ValueError) as error:
             raise InvalidScenario(f"invalid tolerances: {error}") from error
-        if any(value < 0 for value in result.to_dict().values()) or result.finite_difference_step == 0:
+        values = tuple(result.to_dict().values())
+        if not np.all(np.isfinite(values)):
+            raise InvalidScenario("tolerances and the finite-difference step must be finite")
+        if any(value < 0 for value in values) or result.finite_difference_step == 0:
             raise InvalidScenario("tolerances must be non-negative and the finite-difference step must be positive")
         return result
 
@@ -322,6 +333,15 @@ class Scenario:
             raise InvalidScenario(f"unknown scalar loss reduction {self.loss.op!r}")
         if self.loss.op == "weighted_sum" and self.loss.weights is None:
             raise InvalidScenario("weighted_sum loss requires serialized weights")
+        if self.loss.op == "weighted_sum":
+            try:
+                weights = np.asarray(self.loss.weights, dtype=np.float64)
+            except (TypeError, ValueError) as error:
+                raise InvalidScenario("weighted_sum loss weights must be numeric") from error
+            if not np.all(np.isfinite(weights)):
+                raise InvalidScenario("weighted_sum loss weights must be finite")
+        elif self.loss.weights is not None:
+            raise InvalidScenario(f"{self.loss.op} loss must not define weights")
         input_names = {item.name for item in self.inputs}
         for check in self.metamorphic_checks:
             if check.input not in input_names:
@@ -344,6 +364,11 @@ def scenario_from_json(data: str) -> Scenario:
     if not isinstance(payload, dict):
         raise InvalidScenario("scenario JSON must contain an object")
     if "scenario" in payload:
+        artifact_version = payload.get("artifact_schema_version")
+        if artifact_version != ARTIFACT_SCHEMA_VERSION or isinstance(artifact_version, bool):
+            raise InvalidScenario(
+                f"artifact schema {artifact_version!r} is unsupported; expected {ARTIFACT_SCHEMA_VERSION}"
+            )
         payload = payload["scenario"]
     if not isinstance(payload, dict):
         raise InvalidScenario("artifact scenario must contain an object")
@@ -353,5 +378,5 @@ def scenario_from_json(data: str) -> Scenario:
 def load_scenario(path: Path) -> Scenario:
     try:
         return scenario_from_json(path.read_text(encoding="utf-8"))
-    except OSError as error:
+    except (OSError, UnicodeError) as error:
         raise InvalidScenario(f"cannot read scenario {path}: {error}") from error

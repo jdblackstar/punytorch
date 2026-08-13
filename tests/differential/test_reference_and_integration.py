@@ -45,6 +45,19 @@ def test_reference_logsumexp_uses_stable_shifted_formula():
     assert np.all(np.isfinite(execution.output))
 
 
+def test_tuple_axis_reduction_is_classified_as_unsupported():
+    scenario = single_node_scenario(
+        op="logsumexp",
+        values=[[[1.0, 2.0]], [[3.0, 4.0]]],
+        params={"axis": [0, 2], "keepdims": False},
+    )
+
+    result = verify_scenario(scenario)
+
+    assert result.outcome == Outcome.UNSUPPORTED
+    assert "tuple-axis reductions" in result.message
+
+
 def test_known_core_graph_checks_exp_log_logsumexp_and_repeated_gather():
     scenario = known_core_scenario()
 
