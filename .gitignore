@@ -9,6 +9,7 @@ __pycache__/
 .pytest_cache
 .ruff_cache
 .venv
+.punytorch-differential-failures/
 
 # dataset files
 *.gz
